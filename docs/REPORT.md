@@ -10,7 +10,7 @@ n8n coordinates a retrieval agent, analyst and critic, with a single bounded cor
 
 ## Core capabilities
 
-- **Tool use and agentic RAG:** agent-chosen Qdrant tool query; source IDs and publication dates in retrieved payloads. No-RAG and fixed top-3 RAG are controlled baselines. In agentic mode the prompt requires retrieval, but model behavior must be checked in execution logs.
+- **Tool use and agentic RAG:** agent-chosen Qdrant tool query; source IDs and publication dates in retrieved payloads. No-RAG and fixed top-3 RAG are controlled baselines routed around the tool-connected agent. In agentic mode the prompt requires retrieval, but model behavior must be checked in execution logs.
 - **Memory:** persistent Qdrant source-card store and SQLite proposal/trade history. This is external state, not conversational personal memory; no claim of long-term autonomous learning.
 - **Reflection:** independent critic checks freshness, claims and risk; bounded one-pass revision prevents unconstrained self-talk.
 - **Collaboration/HITL:** three agents collaborate; a separate form requires human choice for Alpaca paper orders.
