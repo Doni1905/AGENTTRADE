@@ -88,7 +88,7 @@
     "id": "Q09",
     "published_at": "2026-08-08",
     "ticker": "AAPL",
-    "question": "Does an agent approve ledger writes itself?",
+    "question": "Does an agent approve a paper order itself?",
     "must_contain": [
       "human",
       "approval"
