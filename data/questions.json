@@ -1,0 +1,268 @@
+[
+  {
+    "id": "Q01",
+    "published_at": "2026-08-08",
+    "ticker": "AAPL",
+    "question": "Which ticker represents Apple in this classroom system?",
+    "must_contain": [
+      "AAPL"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q02",
+    "published_at": "2026-08-08",
+    "ticker": "MSFT",
+    "question": "What is Microsoft ticker?",
+    "must_contain": [
+      "MSFT"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q03",
+    "published_at": "2026-08-08",
+    "ticker": "AAPL",
+    "question": "Is the Apple case card a live filing?",
+    "must_contain": [
+      "frozen",
+      "not"
+    ],
+    "must_not_contain": [
+      "real-time"
+    ]
+  },
+  {
+    "id": "Q04",
+    "published_at": "2026-08-08",
+    "ticker": "AAPL",
+    "question": "Name the allowed two tickers.",
+    "must_contain": [
+      "AAPL",
+      "MSFT"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q05",
+    "published_at": "2026-08-08",
+    "ticker": "AAPL",
+    "question": "What is the max paper order notional?",
+    "must_contain": [
+      "1000"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q06",
+    "published_at": "2026-08-08",
+    "ticker": "MSFT",
+    "question": "What is the maximum shares per order?",
+    "must_contain": [
+      "5"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q07",
+    "published_at": "2026-08-08",
+    "ticker": "AAPL",
+    "question": "What is the max held per ticker?",
+    "must_contain": [
+      "5"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q08",
+    "published_at": "2026-08-08",
+    "ticker": "MSFT",
+    "question": "Can paper short selling occur?",
+    "must_contain": [
+      "no",
+      "short"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q09",
+    "published_at": "2026-08-08",
+    "ticker": "AAPL",
+    "question": "Does an agent approve ledger writes itself?",
+    "must_contain": [
+      "human",
+      "approval"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q10",
+    "published_at": "2026-08-08",
+    "ticker": "MSFT",
+    "question": "When does a proposal expire?",
+    "must_contain": [
+      "30",
+      "minute"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q11",
+    "published_at": "2026-08-08",
+    "ticker": "AAPL",
+    "question": "Which price move invalidates a proposal?",
+    "must_contain": [
+      "2%"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q12",
+    "published_at": "2026-08-08",
+    "ticker": "MSFT",
+    "question": "What data source supplies daily prices?",
+    "must_contain": [
+      "Yahoo",
+      "yfinance"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q13",
+    "published_at": "2026-08-08",
+    "ticker": "AAPL",
+    "question": "May you claim prices are real time?",
+    "must_contain": [
+      "not",
+      "real-time"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q14",
+    "published_at": "2026-08-08",
+    "ticker": "MSFT",
+    "question": "What if latest daily close is older than seven days?",
+    "must_contain": [
+      "reject",
+      "seven"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q15",
+    "published_at": "2026-08-08",
+    "ticker": "AAPL",
+    "question": "How many closes in SMA20?",
+    "must_contain": [
+      "5"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q16",
+    "published_at": "2026-08-08",
+    "ticker": "MSFT",
+    "question": "How many closes in SMA50?",
+    "must_contain": [
+      "50"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q17",
+    "published_at": "2026-08-08",
+    "ticker": "AAPL",
+    "question": "Which RSI lookback is used?",
+    "must_contain": [
+      "14"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q18",
+    "published_at": "2026-08-08",
+    "ticker": "MSFT",
+    "question": "How is MACD constructed?",
+    "must_contain": [
+      "EMA12",
+      "EMA26"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q19",
+    "published_at": "2026-08-08",
+    "ticker": "AAPL",
+    "question": "What is the MACD signal smoothing?",
+    "must_contain": [
+      "EMA9"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q20",
+    "published_at": "2026-08-08",
+    "ticker": "MSFT",
+    "question": "Are indicators guaranteed forecasts?",
+    "must_contain": [
+      "not",
+      "forecast"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q21",
+    "published_at": "2026-08-08",
+    "ticker": "AAPL",
+    "question": "Name the three retrieval modes.",
+    "must_contain": [
+      "no",
+      "fixed",
+      "agent"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q22",
+    "published_at": "2026-08-08",
+    "ticker": "MSFT",
+    "question": "How many frozen benchmark questions?",
+    "must_contain": [
+      "25"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q23",
+    "published_at": "2026-08-08",
+    "ticker": "AAPL",
+    "question": "How many repeats for consistency?",
+    "must_contain": [
+      "three"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q24",
+    "published_at": "2026-08-08",
+    "ticker": "MSFT",
+    "question": "Is a short backtest proof of alpha?",
+    "must_contain": [
+      "not",
+      "alpha"
+    ],
+    "must_not_contain": []
+  },
+  {
+    "id": "Q25",
+    "published_at": "2026-08-08",
+    "ticker": "AAPL",
+    "question": "What must the critic check?",
+    "must_contain": [
+      "stale",
+      "citation"
+    ],
+    "must_not_contain": []
+  }
+]
