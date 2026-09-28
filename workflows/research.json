@@ -45,8 +45,8 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
       "position": [
-        510,
-        100
+        740,
+        -80
       ],
       "parameters": {
         "promptType": "define",
@@ -63,7 +63,7 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
       "position": [
-        780,
+        1270,
         100
       ],
       "parameters": {
@@ -80,12 +80,12 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
       "position": [
-        1050,
+        1510,
         100
       ],
       "parameters": {
         "promptType": "define",
-        "text": "={{ \"Question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nRetrieved evidence: \" + $(\"1 Retrieval agent\").item.json.output + \"\\nAnalyst proposal: \" + $json.output }}",
+        "text": "={{ \"Question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nRetrieved evidence: \" + $(\"Normalize retrieval\").item.json.output + \"\\nAnalyst proposal: \" + $json.output }}",
         "options": {
           "systemMessage": "You are the independent critic. Check citations actually support claims, timestamps, stale market data, weak or conflicting evidence, unsupported confidence and risky paper-order intent. List concrete errors or say PASS. Never modify the ledger."
         }
@@ -97,12 +97,12 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
       "position": [
-        1320,
+        1760,
         100
       ],
       "parameters": {
         "promptType": "define",
-        "text": "={{ \"Original question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nMarket snapshot: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.snapshot) + \"\\nEvidence: \" + $(\"1 Retrieval agent\").item.json.output + \"\\nInitial analysis: \" + $(\"2 Analyst agent\").item.json.output + \"\\nCritique: \" + $json.output }}",
+        "text": "={{ \"Original question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nMarket snapshot: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.snapshot) + \"\\nEvidence: \" + $(\"Normalize retrieval\").item.json.output + \"\\nInitial analysis: \" + $(\"2 Analyst agent\").item.json.output + \"\\nCritique: \" + $json.output }}",
         "options": {
           "systemMessage": "Produce the final corrected answer in exactly one pass. Keep supported evidence and [doc N] citations; remove any unsupported claim and disclose stale or absent data. Never claim a paper order was placed. State educational-only. If critique says PASS, retain the valid initial judgment. No tool, no further iteration."
         }
@@ -114,7 +114,7 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        1570,
+        2000,
         100
       ],
       "parameters": {
@@ -147,7 +147,7 @@
             {
               "id": "retrieval",
               "name": "retrieval",
-              "value": "={{ $(\"1 Retrieval agent\").item.json.output }}",
+              "value": "={{ $(\"Normalize retrieval\").item.json.output }}",
               "type": "string"
             }
           ]
@@ -161,8 +161,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
       "typeVersion": 1,
       "position": [
-        510,
-        360
+        750,
+        -340
       ],
       "parameters": {
         "model": "={{ $(\"Validate and prepare evidence\").item.json.model }}",
@@ -181,7 +181,7 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
       "typeVersion": 1,
       "position": [
-        780,
+        1280,
         360
       ],
       "parameters": {
@@ -201,7 +201,7 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
       "typeVersion": 1,
       "position": [
-        1050,
+        1530,
         360
       ],
       "parameters": {
@@ -221,7 +221,7 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
       "typeVersion": 1,
       "position": [
-        1320,
+        1780,
         360
       ],
       "parameters": {
@@ -241,8 +241,8 @@
       "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
       "typeVersion": 1.2,
       "position": [
-        500,
-        570
+        750,
+        -560
       ],
       "parameters": {
         "mode": "retrieve-as-tool",
@@ -268,8 +268,8 @@
       "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
       "typeVersion": 1,
       "position": [
-        520,
-        770
+        760,
+        -760
       ],
       "parameters": {
         "model": "nomic-embed-text"
@@ -291,9 +291,97 @@
         -220
       ],
       "parameters": {
-        "content": "# AGENTTRADE | local, paper-only\nPOST /webhook/agenttrade-analyze: {\"question\":\"...\",\"ticker\":\"AAPL\",\"mode\":\"agentic\",\"model\":\"qwen2.5:3b\",\"evaluation\":false}.\nSeed Qdrant via POST http://localhost:8000/ingest first. Configure local Ollama and Qdrant credentials after import. None/fixed/agentic are mode-locked, so the retrieval agent has tool is connected in every mode but the prompt prohibits using it in control modes; inspect traces for protocol violations; examine intermediate logs during evaluation. No live order goes through this workflow.",
+        "content": "# AGENTTRADE | paper-only\nResearch webhook routes none/fixed to controlled evidence, agentic to Qdrant-connected retrieval agent. A single analyst, critic and bounded correction follow both branches. No research branch can submit an Alpaca order. Seed Qdrant through POST http://localhost:8000/ingest; configure Ollama/Qdrant credentials after import.",
         "height": 200,
         "width": 620
+      }
+    },
+    {
+      "id": "dd714035-2e75-4eaf-9690-ddd57eaec9cd",
+      "name": "Route retrieval mode",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        490,
+        100
+      ],
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "90de24fe-617e-44ac-9386-d87af5303a95",
+                    "leftValue": "={{ $json.mode }}",
+                    "rightValue": "agentic",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "a6708e5d-9799-4e39-b019-32a875fbe5cf",
+      "name": "Controlled baseline evidence",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        740,
+        310
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "baseline-output",
+              "name": "output",
+              "value": "={{ $json.mode === \"none\" ? \"No retrieved evidence. State uncertainty.\" : JSON.stringify($json.fixed_evidence) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "0a04247c-1816-4c68-b291-824cc26c350e",
+      "name": "Normalize retrieval",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1010,
+        100
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "normalized-output",
+              "name": "output",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
       }
     }
   ],
@@ -313,7 +401,7 @@
       "main": [
         [
           {
-            "node": "1 Retrieval agent",
+            "node": "Route retrieval mode",
             "type": "main",
             "index": 0
           }
@@ -324,7 +412,7 @@
       "main": [
         [
           {
-            "node": "2 Analyst agent",
+            "node": "Normalize retrieval",
             "type": "main",
             "index": 0
           }
@@ -425,6 +513,46 @@
           {
             "node": "1 Retrieval agent",
             "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route retrieval mode": {
+      "main": [
+        [
+          {
+            "node": "1 Retrieval agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Controlled baseline evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Controlled baseline evidence": {
+      "main": [
+        [
+          {
+            "node": "Normalize retrieval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize retrieval": {
+      "main": [
+        [
+          {
+            "node": "2 Analyst agent",
+            "type": "main",
             "index": 0
           }
         ]
