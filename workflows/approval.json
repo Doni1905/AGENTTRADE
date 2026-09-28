@@ -1,0 +1,85 @@
+{
+  "name": "AGENTTRADE - human approval for Alpaca paper order",
+  "nodes": [
+    {
+      "id": "932e7d57-b11c-47e9-b8fc-53905955436c",
+      "name": "Human approval form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "formTitle": "AGENTTRADE paper-trade approval",
+        "formDescription": "Only paper trades. Review proposal ID and details at http://localhost:8000/ledger before entering it here. Paper account only. Never approve an unfamiliar ID.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Proposal ID",
+              "fieldType": "text",
+              "requiredField": true,
+              "fieldName": "proposal_id"
+            },
+            {
+              "fieldLabel": "Decision",
+              "fieldType": "select",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "approve"
+                  },
+                  {
+                    "option": "reject"
+                  }
+                ]
+              },
+              "requiredField": true,
+              "fieldName": "decision"
+            }
+          ]
+        },
+        "options": {
+          "customCss": ":root { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif; } body { background:#f7f8f6; color:#172630; } button[type=submit] { background:#0e584f; border-radius:3px; }"
+        }
+      }
+    },
+    {
+      "id": "e5d6c1d2-1787-448c-afe1-1e0cd766f642",
+      "name": "Verify and commit simulated order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8000/approval",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({proposal_id:$json.proposal_id,decision:$json.decision}) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Human approval form": {
+      "main": [
+        [
+          {
+            "node": "Verify and commit simulated order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}
