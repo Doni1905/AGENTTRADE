@@ -1,5 +1,5 @@
 """Deterministic market data, retrieval ingestion and Alpaca paper-only orders."""
-import os, json, sqlite3, time, hashlib, math, re, secrets
+import os, json, sqlite3, time, hashlib, math, re, secrets, threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -14,6 +14,7 @@ DB = os.getenv("DATABASE_PATH", "/tmp/agenttrade.sqlite3")
 OLLAMA = os.getenv("OLLAMA_URL", "http://localhost:11434")
 QDRANT = os.getenv("QDRANT_URL", "http://localhost:6333")
 COLLECTION = "agenttrade_evidence"
+_APPROVAL_LOCK = threading.Lock()
 ALLOWED = {"AAPL", "MSFT"}
 CORPUS = Path(__file__).resolve().parent.parent / "data" / "corpus.json"
 
@@ -108,6 +109,11 @@ def alpaca_get(client,path,headers):
 
 @app.post("/approval")
 def approve(a:Approval):
+    # Serialize approval requests in this process; Alpaca client order IDs cover retries.
+    with _APPROVAL_LOCK:
+        return _approve_locked(a)
+
+def _approve_locked(a:Approval):
     with conn() as c:
         row=c.execute("SELECT * FROM proposals WHERE id=?",(a.proposal_id,)).fetchone()
     if not row: raise HTTPException(404,"unknown proposal")
@@ -128,6 +134,14 @@ def approve(a:Approval):
     if errors: raise HTTPException(409,{"risk_errors":errors})
     # Use Alpaca's paper endpoint only; client_order_id enables reconciliation on retries.
     with httpx.Client(timeout=25) as client:
+        prior=client.get("https://paper-api.alpaca.markets/v2/orders:by_client_order_id",headers=headers,params={"client_order_id":"agenttrade-"+a.proposal_id})
+        if prior.status_code == 200:
+            receipt=prior.json()
+            with conn() as c:
+                c.execute("INSERT OR IGNORE INTO trades(proposal_id,alpaca_order_id,ticker,side,qty,price,created) VALUES(?,?,?,?,?,?,?)",(a.proposal_id,receipt.get("id"),row["ticker"],row["side"],row["qty"],row["price"],datetime.now(timezone.utc).isoformat()))
+                c.execute("UPDATE proposals SET status='submitted_to_alpaca' WHERE id=?",(a.proposal_id,))
+            return {"proposal_id":a.proposal_id,"status":"submitted_to_alpaca","paper_only":True,"alpaca_order_id":receipt.get("id"),"alpaca_status":receipt.get("status"),"reconciled":True}
+        if prior.status_code != 404: raise HTTPException(503,"Unable to reconcile prior paper order; check Alpaca dashboard")
         account=alpaca_get(client,"/v2/account",headers)
         if account.get("status") != "ACTIVE": raise HTTPException(409,"Alpaca paper account not active")
         if row["side"] == "BUY" and float(account.get("buying_power",0)) < row["qty"]*market["price"]*1.02:
@@ -137,10 +151,7 @@ def approve(a:Approval):
         if row["side"] == "SELL" and held < row["qty"]: raise HTTPException(409,"insufficient Alpaca paper shares")
         if row["side"] == "BUY" and held + row["qty"] > 5: raise HTTPException(409,"Alpaca paper position would exceed five shares")
         order={"symbol":row["ticker"],"qty":str(row["qty"]),"side":row["side"].lower(),"type":"market","time_in_force":"day","client_order_id":"agenttrade-"+a.proposal_id}
-        prior=client.get("https://paper-api.alpaca.markets/v2/orders:by_client_order_id",headers=headers,params={"client_order_id":order["client_order_id"]})
-        if prior.status_code == 200: response=prior
-        elif prior.status_code == 404: response=client.post("https://paper-api.alpaca.markets/v2/orders",headers=headers,json=order)
-        else: raise HTTPException(503,"Unable to reconcile paper order status; check Alpaca dashboard")
+        response=client.post("https://paper-api.alpaca.markets/v2/orders",headers=headers,json=order)
         if response.status_code not in (200,201):
             # A timeout or conflict may mean the order did land; reconcile via Alpaca order ID before retrying.
             if response.status_code==422:
