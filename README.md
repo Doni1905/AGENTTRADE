@@ -4,7 +4,7 @@ Local, educational AI stock research and **paper trading only** for `AAPL` and `
 
 ## Mac quick start
 
-1. Install Docker Desktop for your Mac from [Docker's official page](https://docs.docker.com/desktop/setup/install/mac-install/); start it, allow the engine to finish. You need disk space for two local models plus embedding model. Apple Silicon runs Ollama here on CPU in Docker; it can be slow. For better speed, you can run Ollama natively on macOS and point n8n/API to `host.docker.internal:11434` (requires compose edits).
+1. Install Docker Desktop for your Mac from [Docker's official page](https://docs.docker.com/desktop/setup/install/mac-install/); start it, allow the engine to finish. You need disk space for two local models plus embedding model. Ollama in Docker on a Mac can be slower than a native Metal-backed Ollama install. For better speed, you can run Ollama natively on macOS and point n8n/API to `host.docker.internal:11434` (requires compose edits).
 2. Clone the private repository with `git clone https://github.com/Doni1905/AGENTTRADE.git` (sign in to GitHub when prompted), then `cd AGENTTRADE`. Alternatively, use GitHub Code > Download ZIP.
 3. `cp .env.example .env`; replace `N8N_ENCRYPTION_KEY` and `APPROVAL_CODE` with separate outputs of `python3 -c 'import secrets; print(secrets.token_hex(32))'`. Do not commit `.env`.
 4. `docker compose up -d --build`; check `docker compose ps`, then `curl http://localhost:8000/health`.
@@ -35,7 +35,7 @@ The API returns a proposal ID, reference price, and expiry. Review it with `curl
 
 ## Evaluation
 
-`python3 -m pip install -r requirements.txt`, then `python3 app/evaluate.py --repeats 3`. This is **450 local LLM invocations** (25 questions x 3 RAG modes x 2 models x 3 repetitions) plus critic passes, potentially many hours on a laptop. For a smoke test use `--repeats 1` and a subset of questions in a temporary copy; don't label that full evaluation. Outputs `results/raw.csv`, `results/summary.json`, `results/RESULTS.md`. Baseline prompts/model/corpus stay fixed. Accuracy is a labeled-term proxy; reasoning quality is a citation/rationale proxy, not human assessment; consistency is exact normalized answer repetition. Inspect raw output manually for citation correctness. **No measured results are supplied before a real run.** Trading returns are deliberately not substituted for QA metrics.
+`python3 -m pip install -r requirements.txt`, then `python3 app/evaluate.py --repeats 3`. This is **450 workflow requests** (25 questions x 3 RAG modes x 2 models x 3 repetitions), each invoking multiple local LLM roles, potentially many hours on a laptop. For a smoke test use `--repeats 1` and a subset of questions in a temporary copy; don't label that full evaluation. Outputs `results/raw.csv`, `results/summary.json`, `results/RESULTS.md`. Baseline prompts/model/corpus stay fixed. Accuracy is a labeled-term proxy; reasoning quality is a citation/rationale proxy, not human assessment; consistency is exact normalized answer repetition. Inspect raw output manually for citation correctness. **No measured results are supplied before a real run.** Trading returns are deliberately not substituted for QA metrics.
 
 ## Architecture and boundaries
 
