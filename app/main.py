@@ -1,5 +1,5 @@
 """Deterministic market data, retrieval ingestion and Alpaca paper-only orders."""
-import os, json, sqlite3, time, hashlib, math, re
+import os, json, sqlite3, time, hashlib, math, re, secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -39,6 +39,7 @@ class Proposal(BaseModel):
 class Approval(BaseModel):
     proposal_id: str
     decision: Literal["approve", "reject"]
+    approval_code: str = ""
 
 
 def price_data(ticker: str):
@@ -121,6 +122,8 @@ def approve(a:Approval):
     if (datetime.now(timezone.utc)-datetime.fromisoformat(row["created"])).total_seconds()>1800:
         with conn() as c: c.execute("UPDATE proposals SET status='expired' WHERE id=? AND status='pending'",(a.proposal_id,))
         raise HTTPException(409,"proposal expired")
+    code=os.getenv("APPROVAL_CODE", "")
+    if not code or not secrets.compare_digest(a.approval_code,code): raise HTTPException(403,"Approval code required")
     if a.decision == "reject":
         with conn() as c: c.execute("UPDATE proposals SET status='rejected' WHERE id=? AND status='pending'",(a.proposal_id,))
         return {"proposal_id":a.proposal_id,"status":"rejected"}
@@ -205,3 +208,12 @@ def prepare(p:AnalysisInput):
             "DO NOT use the Qdrant tool; only use fixed_evidence supplied here." if p.mode=='fixed' else
             "You MUST choose and call the Qdrant retrieval tool with a query you formulate; inspect the returned source metadata and cite doc IDs. You may reformulate and call again if evidence is insufficient."),
             "warning":"Synthetic corpus provides policy facts only; do not treat these as current financial fundamentals or news."}
+
+@app.post("/research")
+def research(p:AnalysisInput):
+    try:
+        with httpx.Client(timeout=300) as client:
+            r=client.post("http://n8n:5678/webhook/agenttrade-analyze",json=p.model_dump())
+            r.raise_for_status()
+            return r.json()
+    except Exception as exc: raise HTTPException(503,f"Local research workflow unavailable: {str(exc)[:140]}")
