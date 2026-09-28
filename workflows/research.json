@@ -14,9 +14,8 @@
         "httpMethod": "POST",
         "path": "agenttrade-analyze",
         "responseMode": "lastNode",
-        "options": {
-          "responseData": "firstEntryJson"
-        }
+        "options": {},
+        "responseData": "firstEntryJson"
       }
     },
     {
