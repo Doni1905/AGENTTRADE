@@ -14,7 +14,7 @@ n8n coordinates a retrieval agent, analyst and critic, with a single bounded cor
 - **Memory:** persistent Qdrant source-card store and SQLite proposal/trade history. This is external state, not conversational personal memory; no claim of long-term autonomous learning.
 - **Reflection:** independent critic checks freshness, claims and risk; bounded one-pass revision prevents unconstrained self-talk.
 - **Collaboration/HITL:** three agents collaborate; a separate form requires human choice for Alpaca paper orders.
-- **Safety:** service rejects unsupported tickers, stale/unavailable prices, short sales, order notional over USD 1,000, positions above 5 shares, stale/shifted proposals, duplicate approval. Only Alpaca paper API is used; credentials are set locally and the URL is hard-coded to the paper host. Local endpoints are unauthenticated and must never be exposed publicly.
+- **Safety:** service rejects unsupported tickers, stale/unavailable prices, short sales, order notional over USD 1,000, positions above 5 shares, stale/shifted proposals, duplicate approval. Only Alpaca paper API is used; credentials are set locally and the URL is hard-coded to the paper host. The paper approval endpoint is guarded by a private local approval code; other local endpoints are unauthenticated. Never expose ports publicly.
 
 ## Evaluation design
 
