@@ -36,6 +36,12 @@
               },
               "requiredField": true,
               "fieldName": "decision"
+            },
+            {
+              "fieldLabel": "Approval code",
+              "fieldName": "approval_code",
+              "fieldType": "password",
+              "requiredField": true
             }
           ]
         },
@@ -58,7 +64,7 @@
         "url": "http://api:8000/approval",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({proposal_id:$json.proposal_id,decision:$json.decision}) }}",
+        "jsonBody": "={{ JSON.stringify({proposal_id:$json.proposal_id,decision:$json.decision,approval_code:$json.approval_code}) }}",
         "options": {}
       }
     }
