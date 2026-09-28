@@ -120,12 +120,12 @@ def approve(a:Approval):
     if a.decision == "reject":
         with conn() as c: c.execute("UPDATE proposals SET status='rejected' WHERE id=? AND status='pending'",(a.proposal_id,))
         return {"proposal_id":a.proposal_id,"status":"rejected"}
+    headers=alpaca_headers()
     market=price_data(row["ticker"])
     if abs(market["price"]-row["price"])/row["price"] > 0.02:
         raise HTTPException(409,"reference price moved more than 2%; request a new proposal")
     errors=risk(row["ticker"],row["side"],row["qty"],market["price"])
     if errors: raise HTTPException(409,{"risk_errors":errors})
-    headers=alpaca_headers()
     # Use Alpaca's paper endpoint only; client_order_id enables reconciliation on retries.
     with httpx.Client(timeout=25) as client:
         account=alpaca_get(client,"/v2/account",headers)
