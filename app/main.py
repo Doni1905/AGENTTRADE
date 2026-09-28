@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Literal
 import httpx
 import yfinance as yf
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
@@ -79,16 +79,9 @@ def risk(ticker, side, qty, price, db=None):
     if side == "HOLD": return ["HOLD is not an order"]
     errors=[]
     if qty < 1: errors.append("quantity must be positive")
-    if not math.isfinite(price) or price <= 0: errors.append("invalid price")
+    if not math.isfinite(price) or price <= 0: return errors+["invalid price"]
     if qty*price > 1000: errors.append("max order notional USD 1,000")
     if qty > 5: errors.append("max 5 shares per order")
-    c = db or conn()
-    try:
-        bought=c.execute("SELECT COALESCE(SUM(CASE WHEN side='BUY' THEN qty ELSE -qty END),0) FROM trades WHERE ticker=?",(ticker,)).fetchone()[0]
-        # Actual holdings are checked against Alpaca at approval, not this local mirror.
-        # Alpaca is authoritative for positions; local mirror may lag and is not a risk gate.
-    finally:
-        if db is None: c.close()
     return errors
 
 @app.post("/proposal")
