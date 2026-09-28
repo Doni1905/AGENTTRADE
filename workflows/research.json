@@ -1,0 +1,440 @@
+{
+  "name": "AGENTTRADE - research and bounded critique",
+  "nodes": [
+    {
+      "id": "044b6664-e520-4e56-98f7-bf37212ea344",
+      "name": "Analyze request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agenttrade-analyze",
+        "responseMode": "lastNode",
+        "options": {
+          "responseData": "firstEntryJson"
+        }
+      }
+    },
+    {
+      "id": "a98d0998-d4d1-4a2b-8121-4a35c9abd051",
+      "name": "Validate and prepare evidence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8000/prepare",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "b43afee1-7046-4112-8ea0-a669f494cf2d",
+      "name": "1 Retrieval agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        510,
+        100
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ \"Question: \" + $json.question + \"\\nTicker: \" + $json.ticker + \"\\nMode: \" + $json.mode + \"\\n\" + $json.retrieval_instruction + \"\\nFixed evidence: \" + JSON.stringify($json.fixed_evidence) + \"\\nMarket snapshot: \" + JSON.stringify($json.snapshot) }}",
+        "options": {
+          "systemMessage": "You are the evidence retrieval agent. Follow the mode-specific retrieval instruction exactly. In agentic mode choose Qdrant tool queries yourself. Never invent a source. Return concise evidence with [doc N] citations, publication dates, source, and any insufficiency. In fixed and none mode do not call tools. This is paper-only educational analysis.",
+          "maxIterations": 4
+        }
+      }
+    },
+    {
+      "id": "575e910d-689a-4656-8caf-4ec76a629854",
+      "name": "2 Analyst agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        780,
+        100
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ \"Question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nTicker: \" + $(\"Validate and prepare evidence\").item.json.ticker + \"\\nMode: \" + $(\"Validate and prepare evidence\").item.json.mode + \"\\nSnapshot: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.snapshot) + \"\\nRetrieval output: \" + $json.output }}",
+        "options": {
+          "systemMessage": "You are a cautious stock research analyst. Interpret supplied evidence and deterministic market indicators; never invent news, filings, numbers or citations. Cite [doc N] only for source evidence actually present. State as-of dates and uncertainty. This is educational paper-only, not financial advice. Output a decision BUY, SELL or HOLD with reasoning; default HOLD when insufficient."
+        }
+      }
+    },
+    {
+      "id": "c5a77687-c657-4dae-b437-52699b4ff76f",
+      "name": "3 Critic agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1050,
+        100
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ \"Question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nRetrieved evidence: \" + $(\"1 Retrieval agent\").item.json.output + \"\\nAnalyst proposal: \" + $json.output }}",
+        "options": {
+          "systemMessage": "You are the independent critic. Check citations actually support claims, timestamps, stale market data, weak or conflicting evidence, unsupported confidence and risky paper-order intent. List concrete errors or say PASS. Never modify the ledger."
+        }
+      }
+    },
+    {
+      "id": "57082bd1-bab9-4790-b9b0-76b23e5659d1",
+      "name": "Bounded correction (one pass)",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1320,
+        100
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ \"Original question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nMarket snapshot: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.snapshot) + \"\\nEvidence: \" + $(\"1 Retrieval agent\").item.json.output + \"\\nInitial analysis: \" + $(\"2 Analyst agent\").item.json.output + \"\\nCritique: \" + $json.output }}",
+        "options": {
+          "systemMessage": "Produce the final corrected answer in exactly one pass. Keep supported evidence and [doc N] citations; remove any unsupported claim and disclose stale or absent data. Never claim a paper order was placed. State educational-only. If critique says PASS, retain the valid initial judgment. No tool, no further iteration."
+        }
+      }
+    },
+    {
+      "id": "d7918499-a965-4075-82f6-4dd1be83ac1e",
+      "name": "Return auditable answer",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1570,
+        100
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "answer",
+              "name": "answer",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            },
+            {
+              "id": "mode",
+              "name": "mode",
+              "value": "={{ $(\"Validate and prepare evidence\").item.json.mode }}",
+              "type": "string"
+            },
+            {
+              "id": "model",
+              "name": "model",
+              "value": "={{ $(\"Validate and prepare evidence\").item.json.model }}",
+              "type": "string"
+            },
+            {
+              "id": "critic",
+              "name": "critic",
+              "value": "={{ $(\"3 Critic agent\").item.json.output }}",
+              "type": "string"
+            },
+            {
+              "id": "retrieval",
+              "name": "retrieval",
+              "value": "={{ $(\"1 Retrieval agent\").item.json.output }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "16a7c893-9058-4894-81dc-c2379dede57b",
+      "name": "Ollama model 1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        510,
+        360
+      ],
+      "parameters": {
+        "model": "={{ $(\"Validate and prepare evidence\").item.json.model }}",
+        "options": {}
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "REPLACE_OLLAMA_CREDENTIAL_ID",
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "id": "dc1b6f99-1687-4f6d-8e5b-b788ce824ad7",
+      "name": "Ollama model 2",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        780,
+        360
+      ],
+      "parameters": {
+        "model": "={{ $(\"Validate and prepare evidence\").item.json.model }}",
+        "options": {}
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "REPLACE_OLLAMA_CREDENTIAL_ID",
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "id": "c010d946-f109-4266-bf35-2279a4513ab5",
+      "name": "Ollama model 3",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        360
+      ],
+      "parameters": {
+        "model": "={{ $(\"Validate and prepare evidence\").item.json.model }}",
+        "options": {}
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "REPLACE_OLLAMA_CREDENTIAL_ID",
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "id": "727b6b8c-958c-4fdb-b99a-062d8587e806",
+      "name": "Ollama model 4",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        360
+      ],
+      "parameters": {
+        "model": "={{ $(\"Validate and prepare evidence\").item.json.model }}",
+        "options": {}
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "REPLACE_OLLAMA_CREDENTIAL_ID",
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "id": "2daf6778-5bc7-46f7-ad2e-d54cec2e6ff4",
+      "name": "Qdrant agent-chosen retrieval",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.2,
+      "position": [
+        500,
+        570
+      ],
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolName": "retrieve_case_evidence",
+        "toolDescription": "Retrieve frozen dated classroom evidence about AAPL, MSFT, methodology and paper-trading policy. Input is a search query selected by the retrieval agent. Cite doc IDs and dates.",
+        "qdrantCollection": {
+          "__rl": true,
+          "mode": "id",
+          "value": "agenttrade_evidence"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "qdrantApi": {
+          "id": "REPLACE_QDRANT_CREDENTIAL_ID",
+          "name": "Qdrant local"
+        }
+      }
+    },
+    {
+      "id": "d9dd370e-7091-4942-aade-57fd3ad1bfea",
+      "name": "Ollama embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        520,
+        770
+      ],
+      "parameters": {
+        "model": "nomic-embed-text"
+      },
+      "credentials": {
+        "ollamaApi": {
+          "id": "REPLACE_OLLAMA_CREDENTIAL_ID",
+          "name": "Ollama local"
+        }
+      }
+    },
+    {
+      "id": "acf30834-7827-4eb6-a6c1-e80da3c29e68",
+      "name": "Safety and evaluation",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        70,
+        -220
+      ],
+      "parameters": {
+        "content": "# AGENTTRADE | local, paper-only\nPOST /webhook/agenttrade-analyze: {\"question\":\"...\",\"ticker\":\"AAPL\",\"mode\":\"agentic\",\"model\":\"qwen2.5:3b\",\"evaluation\":false}.\nSeed Qdrant via POST http://localhost:8000/ingest first. Configure local Ollama and Qdrant credentials after import. None/fixed/agentic are mode-locked, so the retrieval agent has tool is connected in every mode but the prompt prohibits using it in control modes; inspect traces for protocol violations; examine intermediate logs during evaluation. No live order goes through this workflow.",
+        "height": 200,
+        "width": 620
+      }
+    }
+  ],
+  "connections": {
+    "Analyze request": {
+      "main": [
+        [
+          {
+            "node": "Validate and prepare evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate and prepare evidence": {
+      "main": [
+        [
+          {
+            "node": "1 Retrieval agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1 Retrieval agent": {
+      "main": [
+        [
+          {
+            "node": "2 Analyst agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2 Analyst agent": {
+      "main": [
+        [
+          {
+            "node": "3 Critic agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3 Critic agent": {
+      "main": [
+        [
+          {
+            "node": "Bounded correction (one pass)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bounded correction (one pass)": {
+      "main": [
+        [
+          {
+            "node": "Return auditable answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama model 1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "1 Retrieval agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama model 2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "2 Analyst agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama model 3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "3 Critic agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama model 4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Bounded correction (one pass)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant agent-chosen retrieval",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant agent-chosen retrieval": {
+      "ai_tool": [
+        [
+          {
+            "node": "1 Retrieval agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}
