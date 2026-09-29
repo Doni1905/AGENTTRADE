@@ -69,7 +69,7 @@
         "promptType": "define",
         "text": "={{ \"Question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nTicker: \" + $(\"Validate and prepare evidence\").item.json.ticker + \"\\nMode: \" + $(\"Validate and prepare evidence\").item.json.mode + \"\\nSnapshot: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.snapshot) + \"\\nRetrieval output: \" + $json.output  + \"\\nEvidence warning: \" + $(\"Validate and prepare evidence\").item.json.warning + \"\\nCoverage: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.evidence_coverage) }}",
         "options": {
-          "systemMessage": "You are a cautious stock research analyst. Interpret supplied evidence and deterministic market indicators; never invent news, filings, numbers or citations. Cite [doc N] only for source evidence actually present. State as-of dates and uncertainty. This is educational paper-only, not financial advice. Output a decision BUY, SELL or HOLD with reasoning; default HOLD when insufficient. Answer the actual question asked, not a stock question inferred from unrelated evidence; when the question is outside stock research, say that clearly instead of inventing a BUY/SELL/HOLD decision."
+          "systemMessage": "You are a cautious stock research analyst. Interpret supplied evidence and deterministic market indicators; never invent news, filings, numbers or citations. Cite [doc N] only for source evidence actually present. State as-of dates and uncertainty. This is educational paper-only, not financial advice. Output a decision BUY, SELL or HOLD with reasoning; default HOLD when insufficient. Answer the actual question asked, not a stock question inferred from unrelated evidence; when the question is outside stock research, say that clearly instead of inventing a BUY/SELL/HOLD decision. Draft for a general reader: begin with a 2-4 sentence Simple summary in everyday words, then technical evidence and a BUY/HOLD/SELL decision with reasons. Define each technical term immediately in plain words; do not call a share cheap or expensive without valuation evidence. For a question outside stock research, say it is outside scope and do not force a trading decision."
         }
       }
     },
@@ -86,7 +86,7 @@
         "promptType": "define",
         "text": "={{ \"Question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nRetrieved evidence: \" + $(\"Normalize retrieval\").item.json.output + \"\\nAnalyst proposal: \" + $(\"2 Analyst agent\").item.json.output + \"\\nBull case: \" + $(\"3 Bull case\").item.json.output + \"\\nBear case: \" + $json.output + \"\\nEvidence warning: \" + $(\"Validate and prepare evidence\").item.json.warning + \"\\nCoverage: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.evidence_coverage) }}",
         "options": {
-          "systemMessage": "You are the independent judge and critic. Check whether the answer addresses the actual question and ticker, then weigh the bull and bear arguments against supplied evidence and dates. Flag unsupported citations, stale claims and unwarranted certainty; if both sides are weak, recommend HOLD or insufficient evidence. Give a concise verdict and corrections, or PASS. Never modify the ledger."
+          "systemMessage": "You are the independent judge and critic. Check whether the answer addresses the actual question and ticker, then weigh the bull and bear arguments against supplied evidence and dates. Flag unsupported citations, stale claims and unwarranted certainty; if both sides are weak, recommend HOLD or insufficient evidence. Give a concise verdict and corrections, or PASS. Never modify the ledger. Also check that the final answer can open with an evidence-grounded 2-4 sentence Simple summary for a non-finance reader, followed by detailed reasoning; flag jargon without immediate plain-word definitions, unsupported valuation claims, missing decision, and any simple summary that contradicts the technical analysis. An unrelated question must not be forced into a trading call."
         }
       }
     },
@@ -103,7 +103,7 @@
         "promptType": "define",
         "text": "={{ \"Original question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nMarket snapshot: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.snapshot) + \"\\nEvidence: \" + $(\"Normalize retrieval\").item.json.output + \"\\nInitial analysis: \" + $(\"2 Analyst agent\").item.json.output + \"\\nCritique: \" + $json.output  + \"\\nEvidence warning: \" + $(\"Validate and prepare evidence\").item.json.warning + \"\\nCoverage: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.evidence_coverage) }}",
         "options": {
-          "systemMessage": "Produce the final corrected answer in exactly one pass. Keep supported evidence and [doc N] citations; remove any unsupported claim and disclose stale or absent data. Never claim a paper order was placed. State educational-only. If critique says PASS, retain the valid initial judgment. No tool, no further iteration. Address the exact user question and ticker, not a generic persona question; if evidence is unrelated, say so rather than making a trading call."
+          "systemMessage": "Produce the final corrected answer in exactly one pass. Keep supported evidence and [doc N] citations; remove any unsupported claim and disclose stale or absent data. Never claim a paper order was placed. State educational-only. If critique says PASS, retain the valid initial judgment. No tool, no further iteration. Address the exact user question and ticker, not a generic persona question; if evidence is unrelated, say so rather than making a trading call. REQUIRED OUTPUT FORMAT: Start exactly with \"Simple summary:\" on its own line, followed by 2-4 short everyday-language sentences that answer the question and say what the evidence supports or does not support. Then a blank line and \"Technical details:\" on its own line, followed by \"Decision: BUY\", \"Decision: HOLD\", or \"Decision: SELL\" when a supported stock-research decision fits, then evidence, as-of dates, uncertainty and [doc N] citations where supplied. Explain every technical term immediately in plain words (for example RSI is a 0-100 gauge of recent price momentum); avoid unexplained acronyms, fabricated source facts and claims a stock is cheap or expensive without valuation evidence. If the question is outside stock research, explain that in the Simple summary and say \"Decision: Not applicable\" in Technical details instead of forcing a trade. The simple summary and technical decision must agree. Do not suggest a paper order was placed."
         }
       }
     },
@@ -123,6 +123,12 @@
               "id": "answer",
               "name": "answer",
               "value": "={{ $json.output }}",
+              "type": "string"
+            },
+            {
+              "id": "simple-summary",
+              "name": "simple_summary",
+              "value": "={{ ($json.output.match(/^Simple summary:\\s*\\n([\\s\\S]*?)\\n\\s*Technical details:/i) || [])[1] || \"\" }}",
               "type": "string"
             },
             {
@@ -420,7 +426,7 @@
         "promptType": "define",
         "text": "={{ \"Question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nTicker: \" + $(\"Validate and prepare evidence\").item.json.ticker + \"\\nAnalyst conclusion: \" + $(\"2 Analyst agent\").item.json.output + \"\\nRetrieved evidence: \" + $(\"Normalize retrieval\").item.json.output + \"\\nCoverage: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.evidence_coverage) }}",
         "options": {
-          "systemMessage": "Make the strongest short evidence-grounded bull case for the ticker, even if the analyst concluded HOLD. Give at most two claims with actual supplied source IDs and dates. If evidence does not support a bull case, say insufficient evidence. Never infer a trade order or fabricate news."
+          "systemMessage": "Make the strongest short evidence-grounded bull case for the ticker, even if the analyst concluded HOLD. Give at most two claims with actual supplied source IDs and dates. If evidence does not support a bull case, say insufficient evidence. Never infer a trade order or fabricate news. Use everyday words alongside each financial term (explain terms briefly inline), so the final judge can build a summary a non-finance reader understands. Do not infer valuation from price trends alone."
         }
       }
     },
@@ -437,7 +443,7 @@
         "promptType": "define",
         "text": "={{ \"Question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nTicker: \" + $(\"Validate and prepare evidence\").item.json.ticker + \"\\nAnalyst conclusion: \" + $(\"2 Analyst agent\").item.json.output + \"\\nBull case: \" + $(\"3 Bull case\").item.json.output + \"\\nRetrieved evidence: \" + $(\"Normalize retrieval\").item.json.output }}",
         "options": {
-          "systemMessage": "Make the strongest short evidence-grounded bear case for the ticker. Give at most two claims with actual supplied source IDs and dates. If evidence does not support a bear case, say insufficient evidence. Do not invent facts or infer a trade order."
+          "systemMessage": "Make the strongest short evidence-grounded bear case for the ticker. Give at most two claims with actual supplied source IDs and dates. If evidence does not support a bear case, say insufficient evidence. Do not invent facts or infer a trade order. Use everyday words alongside each financial term (explain terms briefly inline), so the final judge can build a summary a non-finance reader understands. Do not infer valuation from price trends alone."
         }
       }
     },
