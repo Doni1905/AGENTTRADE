@@ -149,3 +149,51 @@ if failures:
     print(f"\n{len(failures)} check(s) failed")
     sys.exit(1)
 print("\nAll smoke checks passed.")
+
+
+# Paper pre-flight: stub the broker only after no-key behavior is checked.
+class FakePaperResponse:
+    def __init__(self, status, payload): self.status_code=status; self.payload=payload
+    def json(self): return self.payload
+class FakePaperClient:
+    buying_power="1000"
+    positions=[]
+    order_status=201
+    def __init__(self, **kwargs): pass
+    def __enter__(self): return self
+    def __exit__(self, *args): pass
+    def get(self, url, **kwargs):
+        if url.endswith('/v2/account'): return FakePaperResponse(200,{"status":"ACTIVE","buying_power":self.buying_power})
+        if url.endswith('/v2/positions'): return FakePaperResponse(200,self.positions)
+        if 'by_client_order_id' in url: return FakePaperResponse(404,{"message":"not found"})
+        raise AssertionError(url)
+    def post(self,url,**kwargs): return FakePaperResponse(self.order_status,{"message":"insufficient Alpaca paper shares"})
+original_client = main.httpx.Client
+main.httpx.Client = FakePaperClient
+os.environ["ALPACA_PAPER_KEY_ID"]="stub-paper-key"
+os.environ["ALPACA_PAPER_SECRET_KEY"]="stub-paper-secret"
+ledger_before=len(client.get('/ledger').json()['proposals'])
+r=client.post('/proposal',json={"ticker":"TSLA","side":"SELL","quantity":1,"rationale":"smoke no holdings"})
+check("SELL without shares rejected before proposal",r.status_code==409 and 'hold 0' in r.json()['detail'] and len(client.get('/ledger').json()['proposals'])==ledger_before)
+FakePaperClient.buying_power="100"
+r=client.post('/proposal',json={"ticker":"TSLA","side":"BUY","quantity":1,"rationale":"smoke buying power"})
+check("BUY without buying power rejected before proposal",r.status_code==409 and '$100.00 available' in r.json()['detail'] and len(client.get('/ledger').json()['proposals'])==ledger_before)
+FakePaperClient.buying_power="1000"
+FakePaperClient.positions=[{"symbol":"TSLA","qty_available":"2","qty":"2"}]
+r=client.post('/proposal',json={"ticker":"TSLA","side":"SELL","quantity":1,"rationale":"smoke valid sell"})
+check("SELL with available shares creates proposal",r.status_code==200 and r.json().get('status')=='pending_human_approval')
+valid_pid=r.json().get('proposal_id','')
+FakePaperClient.order_status=422
+r=client.post('/approval',json={"proposal_id":valid_pid,"decision":"approve","approval_code":"smoke-test-code"})
+check("late broker rejection shown verbatim",r.status_code==409 and 'insufficient Alpaca paper shares' in r.json()['detail'])
+FakePaperClient.positions=[]
+ledger_before=len(client.get('/ledger').json()['proposals'])
+os.environ.pop("ALPACA_PAPER_KEY_ID")
+os.environ.pop("ALPACA_PAPER_SECRET_KEY")
+r=client.post('/proposal',json={"ticker":"TSLA","side":"SELL","quantity":1,"rationale":"smoke no keys allowed"})
+check("no-keys proposal remains local",r.status_code==200 and len(client.get('/ledger').json()['proposals'])==ledger_before+1)
+main.httpx.Client=original_client
+if failures:
+    print(f"\n{len(failures)} check(s) failed")
+    sys.exit(1)
+print("Paper pre-flight smoke checks passed.")
