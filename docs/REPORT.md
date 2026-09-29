@@ -40,7 +40,7 @@ Synthetic classroom policy questions are easier than actual equity research and 
 
 ## Portfolio
 
-The dashboard reads Alpaca paper positions, cash, buying power, and broker portfolio-history profit/loss. The local ledger records submissions, not fill-confirmed P&L; it cannot establish a return series. The broker chart can be empty on a new account. Confirm fills and any cash-flow effects in Alpaca.
+The research dashboard (`/`) handles research, approvals, and the local submission ledger. A separate portfolio page (`/portfolio`) reads `/api/portfolio` for Alpaca paper equity, cash, buying power, positions, one-month broker portfolio-history profit/loss, and the 20 most recent broker orders with filled quantities, fill price and status. Refresh reloads broker data. Without keys it shows an unconfigured state, not simulated holdings. The local ledger records submissions, not fill-confirmed P&L; it cannot establish a return series. The broker chart can be empty on a new account. Confirm fills and any cash-flow effects in Alpaca.
 
 ## Production boundary
 
