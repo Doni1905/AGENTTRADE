@@ -4,7 +4,7 @@ AGENTTRADE is a local stock-research prototype for US-listed equities. It combin
 
 ## Features
 
-- Any valid US-listed symbol for research and paper proposals: symbols are validated live against Yahoo Finance, and unknown symbols are rejected with a clear error. The seeded evidence corpus covers `AAPL` and `MSFT`; other symbols research from the live market snapshot (see Limitations).
+- Any valid US-listed symbol for research and paper proposals: symbols are validated live against Yahoo Finance, and unknown symbols are rejected with a clear error. For research, dated live evidence cards for the requested symbol are built from Yahoo Finance price history, available statistics and recent headlines, then upserted alongside frozen benchmark cards in Qdrant.
 - Three research modes: no retrieval (`none`), fixed top-3 retrieval (`fixed`), and agent-selected Qdrant retrieval (`agentic`).
 - Separate retrieval, analyst, and critic roles, followed by one bounded correction pass.
 - Local models: `qwen2.5:3b` and `llama3.2:3b`; `nomic-embed-text` for embeddings.
@@ -84,7 +84,7 @@ Run these commands on the machine hosting the stack. On Windows PowerShell, repl
    npx n8n
    ```
 
-   Open [n8n](http://localhost:5678) and create its local owner account. Use **Import from File** to import both `workflows/research.json` and `workflows/approval.json`. Then:
+   Open [n8n](http://localhost:5678) and create its local owner account. Re-import the updated research workflow if you previously imported v1.2 (the old n8n copy does not update automatically). Use **Import from File** to import both `workflows/research.json` and `workflows/approval.json`. Then:
 
    - Create Ollama credentials using `http://localhost:11434` and Qdrant credentials using `http://localhost:6333`, and assign them to the matching model, embedding, and Qdrant nodes. If the Qdrant credential form requires an API key, an arbitrary local value is sufficient because Qdrant authentication is disabled in this setup.
    - In each workflow, open the HTTP Request node and change its URL to the host API address: `http://localhost:8000/prepare` in the research workflow and `http://localhost:8000/approval` in the approval workflow. The exported files use the Compose-internal hostname `http://api:8000/...`, which a native n8n process cannot resolve.
@@ -119,7 +119,7 @@ curl -sS http://localhost:5678/webhook/agenttrade-analyze \
   -d '{"question":"What is the max paper order notional?","ticker":"AAPL","mode":"agentic","model":"qwen2.5:3b","evaluation":true}'
 ```
 
-`evaluation:true` uses the frozen educational corpus without fetching current prices. For indicator context, use `evaluation:false`; the API fetches current Yahoo Finance data and fails closed if it is unavailable or stale. Set `mode` to `none`, `fixed`, or `agentic` to compare retrieval behavior. Inspect the n8n execution trace to confirm tool calls in agentic mode. An answer is never an order.
+`evaluation:true` accepts only AAPL or MSFT and uses frozen educational cards without fetching current prices. Run the benchmark on a clean Qdrant volume before doing live research; live cards already stored in the shared collection could contaminate agentic retrieval. Re-running `/ingest` does not delete live cards. For indicator context, use `evaluation:false`; the API fetches current Yahoo Finance data and fails closed if it is unavailable or stale. Set `mode` to `none`, `fixed`, or `agentic` to compare retrieval behavior. Inspect the n8n execution trace to confirm tool calls in agentic mode. An answer is never an order.
 
 ### Submit a human-approved paper order
 
@@ -201,7 +201,7 @@ AGENTTRADE/
 ## Limitations and safety
 
 - Educational and **paper-only**: any valid US-listed symbol is accepted after a live Yahoo Finance check; unknown symbols are rejected with an `Unsupported ticker` error. Alpaca paper accounts trade US-listed securities only. Do not use the output for real investment decisions.
-- The seeded evidence corpus covers only `AAPL` and `MSFT`. For any other symbol, retrieval finds no ticker-specific cards, so the analyst relies on the live market snapshot and the general policy cards, and the API marks the run with `ticker_seeded_in_corpus: false`. The evaluation benchmark stays on the seeded `AAPL`/`MSFT` questions by design. To extend retrieval to another ticker, add dated synthetic cards for it to `data/corpus.json` and re-run `curl -X POST http://localhost:8000/ingest`.
+- Live research for every requested valid symbol creates ticker-tagged, dated price, available key-statistics and up to five recent public headline cards; these are embedded and upserted into the same Qdrant collection without deleting the frozen seeds. When news is missing, price and available statistics still work; `evidence_coverage` reports the weaker coverage. The cards are refreshed on each run, not a full article or filings feed. The frozen benchmark uses the original 25 AAPL/MSFT questions and needs an uncontaminated Qdrant volume for a fair agentic comparison. To add permanent classroom cards, add dated entries to `data/corpus.json` and run `/ingest`. Historical synthetic policy card 3 mentions an obsolete AAPL/MSFT-only restriction; the live API risk rules, not this old card, define the current scope.
 - The evidence corpus is synthetic and cannot establish actual company news or fundamentals. Yahoo Finance data is unofficial or delayed and is not a point-in-time historical feed.
 - The n8n workflow JSON was structurally checked, but the stack and workflows were **not run end to end in the build environment**. No measured benchmark results are bundled; import, credential selection, and runtime behavior require validation on your machine.
 - The API has unauthenticated local endpoints; the approval endpoint requires the private code. Compose binds exposed ports to `127.0.0.1`. Do not publish them externally.
