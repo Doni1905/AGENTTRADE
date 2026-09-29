@@ -8,32 +8,37 @@ AGENTTRADE is a local stock-research prototype for `AAPL` and `MSFT`. It combine
 - Separate retrieval, analyst, and critic roles, followed by one bounded correction pass.
 - Local models: `qwen2.5:3b` and `llama3.2:3b`; `nomic-embed-text` for embeddings.
 - Python-calculated market indicators and deterministic proposal/risk checks. Research output cannot place an order.
-- A separate n8n approval form for Alpaca paper orders, with a local approval code, proposal expiry, and duplicate-order checks.
+- A dashboard approval flow for Alpaca paper orders: pending proposals, one-click approve or reject, local approval code, proposal expiry, and duplicate-order checks. An n8n approval form is included as an alternative path.
 - A 25-question benchmark comparing three retrieval modes across both models; raw responses and summary scores are written locally.
 
 ## Architecture
 
 ```text
+Native on the host machine:   n8n (workflow orchestration) + Ollama (models)
+Docker Compose (containers):  qdrant (evidence store) + api (FastAPI service)
+
 Research request -> n8n research workflow -> Python API (prepare, data, fixed retrieval)
                                         |-> Qdrant + Ollama: retrieval agent (agentic mode)
                                         |-> Ollama: analyst -> critic -> one correction -> answer
 
-Human -> n8n approval form -> Python API (risk recheck, SQLite ledger)
+Human -> dashboard approval (or n8n form) -> Python API (risk recheck, SQLite ledger)
                            -> Alpaca paper API (order submission only)
 ```
 
-Docker Compose runs four local services: `n8n` (workflow orchestration), `ollama` (models), `qdrant` (evidence store), and `api` (FastAPI dashboard, market data, risk rules, and ledger). The research workflow does not have an order-submission path. See [the project report](docs/REPORT.md) for the design and evaluation limits.
+Docker Compose runs two services: `qdrant` (evidence store) and `api` (FastAPI dashboard, market data, risk rules, and ledger). Ollama and n8n run natively on the host machine. The API container reaches host Ollama at `http://host.docker.internal:11434`, which Docker Desktop provides on both Mac and Windows. The research workflow does not have an order-submission path. See [the project report](docs/REPORT.md) for the design and evaluation limits.
 
 ## Prerequisites
 
-- [Docker Desktop for Mac](https://docs.docker.com/desktop/setup/install/mac-install/), started with its engine running, or a working Docker Engine with Compose on another platform.
-- Git and Python 3 on the host; `curl` for the examples below.
-- Enough disk space for two language models and an embedding model. Model downloads can take several minutes. Docker-hosted Ollama can be slower on a Mac than a native Metal-backed installation; switching to native Ollama requires changing the service URLs in Compose and n8n.
+- [Docker Desktop for Mac](https://docs.docker.com/desktop/setup/install/mac-install/) or [Docker Desktop for Windows](https://docs.docker.com/desktop/setup/install/windows-install/), started with its engine running.
+- [Ollama](https://ollama.com/download) installed natively on the host (Mac app or Windows installer), not in Docker.
+- [Node.js](https://nodejs.org/) (current LTS) to run n8n with `npx`.
+- Git and Python 3. The examples below use `python3` (Mac) and `python` (Windows).
+- Enough disk space for two language models and an embedding model. Model downloads can take several minutes.
 - Access to this private repository. An [Alpaca paper account](https://app.alpaca.markets/signup) is needed **only** to submit paper orders; research and evaluation do not need Alpaca keys.
 
 ## Quick start
 
-Run these commands from a terminal on the machine hosting Docker.
+Run these commands on the machine hosting the stack. On Windows PowerShell, replace `cp` with `copy`, `python3` with `python`, and `curl` with `curl.exe` (PowerShell aliases `curl` to `Invoke-WebRequest`).
 
 1. Clone the repository and create your local environment file:
 
@@ -43,27 +48,27 @@ Run these commands from a terminal on the machine hosting Docker.
    cp .env.example .env
    ```
 
-   In `.env`, replace `N8N_ENCRYPTION_KEY` and `APPROVAL_CODE` with **different** random values. Run the following command twice, then put one result in each field. Do not commit `.env` or share the values.
+   In `.env`, replace `APPROVAL_CODE` with a random value. Do not commit `.env` or share the value.
 
    ```sh
    python3 -c 'import secrets; print(secrets.token_hex(32))'
    ```
 
-2. Build and start the four services, then check the API:
+2. Install the required models with the native Ollama. Make sure Ollama is running (open the app on Mac, or the Ollama service on Windows):
+
+   ```sh
+   ollama pull qwen2.5:3b
+   ollama pull llama3.2:3b
+   ollama pull nomic-embed-text
+   ollama list
+   ```
+
+3. Build and start the two container services, then check the API:
 
    ```sh
    docker compose up -d --build
    docker compose ps
    curl http://localhost:8000/health
-   ```
-
-3. Download the required models into the Ollama container:
-
-   ```sh
-   docker compose exec ollama ollama pull qwen2.5:3b
-   docker compose exec ollama ollama pull llama3.2:3b
-   docker compose exec ollama ollama pull nomic-embed-text
-   docker compose exec ollama ollama list
    ```
 
 4. Ingest the included synthetic evidence cards into Qdrant:
@@ -72,9 +77,22 @@ Run these commands from a terminal on the machine hosting Docker.
    curl -X POST http://localhost:8000/ingest
    ```
 
-5. Open [n8n](http://localhost:5678) and create its local owner account. Use **Import from File** to import both `workflows/research.json` and `workflows/approval.json`. Create Ollama credentials using `http://ollama:11434` and Qdrant credentials using `http://qdrant:6333`, then assign them to the matching model and Qdrant nodes. If the Qdrant credential form requires an API key, an arbitrary local value is sufficient for this Compose setup because Qdrant authentication is disabled. The exported workflows do not include configured credentials. Review any node compatibility warnings against the pinned n8n version in `compose.yaml`.
+5. Start n8n natively (it stays in the foreground; use a second terminal for later commands):
+
+   ```sh
+   npx n8n
+   ```
+
+   Open [n8n](http://localhost:5678) and create its local owner account. Use **Import from File** to import both `workflows/research.json` and `workflows/approval.json`. Then:
+
+   - Create Ollama credentials using `http://localhost:11434` and Qdrant credentials using `http://localhost:6333`, and assign them to the matching model, embedding, and Qdrant nodes. If the Qdrant credential form requires an API key, an arbitrary local value is sufficient because Qdrant authentication is disabled in this setup.
+   - In each workflow, open the HTTP Request node and change its URL to the host API address: `http://localhost:8000/prepare` in the research workflow and `http://localhost:8000/approval` in the approval workflow. The exported files use the Compose-internal hostname `http://api:8000/...`, which a native n8n process cannot resolve.
+
+   The exported workflows do not include configured credentials. Review any node compatibility warnings against your installed n8n version.
 
 6. Publish the research workflow in n8n before using its production webhook. The dashboard is at [http://localhost:8000](http://localhost:8000).
+
+If the API logs show Ollama connection errors (`docker compose logs api`), native Ollama is bound to `127.0.0.1` by default. Set `OLLAMA_HOST=0.0.0.0` for the Ollama process so the container can reach it through `host.docker.internal`, then restart Ollama.
 
 ### Environment variables
 
@@ -82,12 +100,11 @@ Set these in the local `.env` file copied from `.env.example`.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `N8N_ENCRYPTION_KEY` | Yes | Encrypts local n8n credentials; generate a unique value. |
-| `APPROVAL_CODE` | Yes | Private local code required by the paper-order approval endpoint; generate a separate value. |
+| `APPROVAL_CODE` | Yes | Private local code required by the paper-order approval endpoint; generate a unique value. |
 | `ALPACA_PAPER_KEY_ID` | Paper orders only | Alpaca **paper** account key ID. Leave empty for research-only use. |
 | `ALPACA_PAPER_SECRET_KEY` | Paper orders only | Matching Alpaca **paper** secret key. Leave empty for research-only use. |
 
-The first two variables are required by `compose.yaml` even when no paper order is planned. The API's Ollama and Qdrant service URLs are set in Compose, not in `.env`.
+`APPROVAL_CODE` is required by `compose.yaml` even when no paper order is planned. The API's Ollama and Qdrant service URLs are set in Compose, not in `.env`. Native n8n generates its own credential encryption key on first run, so no encryption-key variable is needed here.
 
 ## Usage
 
@@ -112,7 +129,17 @@ docker compose up -d --force-recreate api
 curl http://localhost:8000/snapshot/AAPL
 ```
 
-Create a proposal only after checking the data and risk. The example below is an API request, **not** a recommendation to trade:
+Then use the dashboard at [http://localhost:8000](http://localhost:8000):
+
+1. In **New trade proposal**, choose the symbol, side, and quantity and give a rationale. The server takes a fresh price snapshot, applies the risk limits, and creates a pending proposal. A proposal is not an order.
+2. In **Pending approval**, review the proposal details. The approval code is pre-filled from your local `.env` by the server; your click is the human gate. Choose **Approve** or **Reject**.
+3. Approving re-runs the expiry, price-move, and risk checks before a market order is sent to `https://paper-api.alpaca.markets`. Rejecting closes the proposal. The **Ledger** section updates after each decision.
+
+Proposals expire 30 minutes after creation. The ledger records submission, not a guaranteed fill; confirm final status in the Alpaca paper dashboard. The pre-filled code is visible to anyone who can open the local page, so keep the ports bound to `127.0.0.1` and never expose them to the internet. Never enter live account credentials.
+
+The n8n approval form remains available as an alternative path: publish `workflows/approval.json` and open the **Production Form URL** displayed by its Form Trigger node. The same proposal IDs, expiry, and approval-code checks apply there.
+
+You can also create a proposal from the terminal instead of the form. The example below is an API request, **not** a recommendation to trade:
 
 ```sh
 curl -sS -X POST http://localhost:8000/proposal \
@@ -120,8 +147,6 @@ curl -sS -X POST http://localhost:8000/proposal \
   -d '{"ticker":"AAPL","side":"BUY","quantity":1,"rationale":"Educational example only; review data and risk before simulation."}'
 curl http://localhost:8000/ledger
 ```
-
-Publish `workflows/approval.json` in n8n and open the **Production Form URL** displayed by its Form Trigger node. Review the returned proposal ID and details in the ledger; the human operator enters the ID, chooses `approve` or `reject`, and supplies the private approval code. Approval triggers another expiry, price-move, and risk check before a market order is sent to `https://paper-api.alpaca.markets`. The ledger records submission, not a guaranteed fill. Confirm final status in the Alpaca paper dashboard. Never enter live account credentials or expose these localhost ports to the internet.
 
 ### Evaluate the research workflow
 
@@ -132,13 +157,21 @@ python3 -m pip install -r requirements.txt
 python3 app/evaluate.py --repeats 1
 ```
 
-One repeat still runs 150 requests (25 questions × 3 modes × 2 models); use it to check the pipeline, not to claim final results. The full three-repeat comparison runs 450 requests and may take hours on a laptop:
+One repeat still runs 150 requests (25 questions x 3 modes x 2 models); use it to check the pipeline, not to claim final results. The full three-repeat comparison runs 450 requests and may take hours on a laptop:
 
 ```sh
 python3 app/evaluate.py --repeats 3
 ```
 
 Outputs are written to `results/raw.csv`, `results/summary.json`, and `results/RESULTS.md`. The accuracy and reasoning scores are term/citation proxies, not expert review. Check raw answers and citations manually before reporting conclusions.
+
+### Run the smoke tests
+
+Offline checks for the API, risk rules, approval gate, and dashboard rendering. They use a temporary database and a fake market snapshot, so no Docker, Ollama, Qdrant, n8n, or Alpaca keys are needed:
+
+```sh
+python3 smoke_test.py
+```
 
 ## Project structure
 
@@ -157,9 +190,10 @@ AGENTTRADE/
 │   ├── approval.json     # Human approval form
 │   └── research.json     # Research orchestration
 ├── .env.example          # Local configuration template
-├── compose.yaml          # Four-service stack
+├── compose.yaml          # Qdrant and API services
 ├── Dockerfile            # API image
 ├── requirements.txt      # Python dependencies
+├── smoke_test.py         # Offline API and dashboard checks
 └── README.md
 ```
 
@@ -169,7 +203,7 @@ AGENTTRADE/
 - The evidence corpus is synthetic and cannot establish actual company news or fundamentals. Yahoo Finance data is unofficial or delayed and is not a point-in-time historical feed.
 - The n8n workflow JSON was structurally checked, but the stack and workflows were **not run end to end in the build environment**. No measured benchmark results are bundled; import, credential selection, and runtime behavior require validation on your machine.
 - The API has unauthenticated local endpoints; the approval endpoint requires the private code. Compose binds exposed ports to `127.0.0.1`. Do not publish them externally.
-- `docker compose down` stops the stack without removing named volumes. `docker compose down -v` also deletes saved n8n state, Ollama models, Qdrant data, and the SQLite ledger.
+- `docker compose down` stops the containers without removing named volumes. `docker compose down -v` also deletes Qdrant data and the SQLite ledger. n8n keeps its state in its own host data directory and Ollama stores models outside Compose; neither is removed by `down -v`.
 
 ## References
 
