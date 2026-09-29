@@ -95,6 +95,29 @@ check("no-news fallback uses stats and price", r.status_code == 200 and
       r.json()["evidence_coverage"]["news_cards"] == 0 and "Headline coverage unavailable" in r.json()["warning"])
 main.yf.Ticker = original_ticker
 main.upsert_live_evidence = original_upsert
+# Exercise the actual Qdrant request path with a fake client: no collection reset,
+# deletion touches reserved live IDs only, and seeded IDs are never submitted.
+import httpx
+original_client = main.httpx.Client
+requests = []
+class FakeResponse:
+    status_code = 200
+    def raise_for_status(self): pass
+    def json(self): return {"embedding": [0.1, 0.2, 0.3]}
+class FakeHTTPClient:
+    def __init__(self, **kwargs): pass
+    def __enter__(self): return self
+    def __exit__(self, *args): pass
+    def post(self, url, **kwargs): requests.append(("POST", url, kwargs)); return FakeResponse()
+    def get(self, url, **kwargs): requests.append(("GET", url, kwargs)); return FakeResponse()
+    def put(self, url, **kwargs): requests.append(("PUT", url, kwargs)); return FakeResponse()
+main.httpx.Client = FakeHTTPClient
+cards, _ = main.live_evidence_cards("TSLA", FAKE_SNAPSHOT | {"ticker":"TSLA"}, FakeTicker())
+result = main.upsert_live_evidence(cards)
+check("live upsert preserves seeded collection", result == len(cards) and
+      not any(method == "PUT" and url.endswith("/collections/" + main.COLLECTION) for method,url,_ in requests) and
+      all(i > 7 for method,url,kw in requests if "points/delete" in url for i in kw["json"]["points"]))
+main.httpx.Client = original_client
 
 bad = client.post("/proposal", json={"ticker": "AAPL", "side": "BUY", "quantity": 10, "rationale": "too many shares for the limit"})
 check("risk limit rejects 10 shares", bad.status_code == 422)
