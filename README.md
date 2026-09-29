@@ -1,6 +1,6 @@
 # AGENTTRADE
 
-AGENTTRADE is a local local stock-research tool for US-listed equities. It combines n8n workflows, local Ollama models, Qdrant retrieval, and a Python API to compare research approaches and submit **paper-only** orders through Alpaca after explicit human approval. It is an educational project, not an investment adviser or a live-trading system.
+AGENTTRADE is a local stock-research tool for US-listed equities. It combines n8n workflows, local Ollama models, Qdrant retrieval, and a Python API to compare research approaches and submit **paper-only** orders through Alpaca after explicit human approval. It is an educational project, not an investment adviser or a live-trading system.
 
 ## Features
 
@@ -84,7 +84,7 @@ Run these commands on the machine hosting the stack. On Windows PowerShell, repl
    npx n8n
    ```
 
-   Open [n8n](http://localhost:5678) and create its local owner account. Re-import the updated research workflow after pulling this version (the old imported copy will not update) (the old n8n copy does not update automatically). Use **Import from File** to import both `workflows/research.json` and `workflows/approval.json`. Then:
+   Open [n8n](http://localhost:5678) and create its local owner account. Re-import the updated research workflow after pulling this version; the old imported copy will not update automatically. Use **Import from File** to import both `workflows/research.json` and `workflows/approval.json`. Then:
 
    - Create Ollama credentials using `http://localhost:11434` and Qdrant credentials using `http://localhost:6333`, and assign them to the matching model, embedding, and Qdrant nodes. If the Qdrant credential form requires an API key, an arbitrary local value is sufficient because Qdrant authentication is disabled in this setup.
    - In each workflow, open the HTTP Request node and change its URL to the host API address: `http://localhost:8000/prepare` in the research workflow and `http://localhost:8000/approval` in the approval workflow. The exported files use the Compose-internal hostname `http://api:8000/...`, which a native n8n process cannot resolve.
@@ -104,6 +104,7 @@ Set these in the local `.env` file copied from `.env.example`.
 | `APPROVAL_CODE` | Yes | Private local code required by the paper-order approval endpoint; generate a unique value. |
 | `ALPACA_PAPER_KEY_ID` | Paper orders only | Alpaca **paper** account key ID. Leave empty for research-only use. |
 | `ALPACA_PAPER_SECRET_KEY` | Paper orders only | Matching Alpaca **paper** secret key. Leave empty for research-only use. |
+| `NEWSAPI_KEY` | No | Optional delayed headline feed for local development/testing only; leave empty for Yahoo fallback. |
 
 `APPROVAL_CODE` is required by `compose.yaml` even when no paper order is planned. The API's Ollama and Qdrant service URLs are set in Compose, not in `.env`. Native n8n generates its own credential encryption key on first run, so no encryption-key variable is needed here.
 
