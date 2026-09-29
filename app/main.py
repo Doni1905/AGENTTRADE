@@ -23,6 +23,12 @@ _APPROVAL_LOCK = threading.Lock()
 SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
 # The frozen synthetic evidence corpus is seeded for these two tickers only.
 SEEDED_CORPUS_TICKERS = {"AAPL", "MSFT"}
+# Only explicit uppercase ticker-like words are candidates; ordinary lower-case prose is not.
+COMPANY_ALIASES = {"apple":"AAPL", "tesla":"TSLA", "microsoft":"MSFT", "nvidia":"NVDA", "google":"GOOG", "alphabet":"GOOG", "amazon":"AMZN", "meta":"META"}
+COMPANY_NAMES = {"AAPL":"Apple", "TSLA":"Tesla", "MSFT":"Microsoft", "NVDA":"Nvidia", "GOOG":"Alphabet", "AMZN":"Amazon", "META":"Meta"}
+QUESTION_STOPWORDS = {"I", "A", "US", "USA", "UK", "IS", "IT", "DO", "THE", "AND", "OR", "BUY", "SELL", "HOLD", "GOOD", "NOW", "ETF", "USD", "SMA", "RSI", "MACD", "PE", "AI", "IPO", "CEO"}
+QUESTION_TICKER_RE = re.compile(r"(?<![A-Za-z0-9.\-])\$?([A-Z][A-Z0-9.\-]{0,9})(?![A-Za-z0-9.\-])")
+
 CORPUS = Path(__file__).resolve().parent.parent / "data" / "corpus.json"
 
 
@@ -32,6 +38,32 @@ def check_symbol_format(ticker: str) -> bool:
 
 def unsupported_ticker(ticker: str) -> HTTPException:
     return HTTPException(400, f"Unsupported ticker '{ticker}'. Provide a valid US-listed symbol, for example AAPL, TSLA or NVDA.")
+
+
+def resolve_question_ticker(question: str):
+    """Find named companies and deliberate uppercase tickers, verifying each on Yahoo.
+
+    Returns (ticker, display name). No market data is inferred from the text alone.
+    """
+    candidates = {ticker for name, ticker in COMPANY_ALIASES.items()
+                  if re.search(r"(?<![A-Za-z])" + re.escape(name) + r"(?![A-Za-z])", question, re.I)}
+    for match in QUESTION_TICKER_RE.finditer(question):
+        ticker = match.group(1)
+        if match.group(0).startswith('$') or (len(ticker) >= 2 and ticker not in QUESTION_STOPWORDS):
+            candidates.add(ticker)
+    valid = []
+    for ticker in sorted(candidates):
+        try:
+            price_data(ticker)  # Existing live Yahoo format, freshness and listing checks.
+            valid.append(ticker)
+        except HTTPException as exc:
+            if exc.status_code != 400: raise  # Network/stale data is not "no ticker".
+    if not valid:
+        raise HTTPException(422, "Which stock is this about? Mention the ticker (like TSLA) or company name.")
+    if len(valid) > 1:
+        raise HTTPException(422, "Which one stock should I analyze? I found: " + ", ".join(valid) + ".")
+    ticker = valid[0]
+    return ticker, COMPANY_NAMES.get(ticker, ticker)
 
 
 def conn():
@@ -381,9 +413,25 @@ def fixed_rag(question:str, ticker:str = None):
         s=client.post(QDRANT+f"/collections/{COLLECTION}/points/search",json=body);s.raise_for_status()
     return {"evidence":[{"text":x["payload"]["content"],**x["payload"]["metadata"]} for x in s.json()["result"]]}
 
+class DetectionInput(BaseModel):
+    question: str = Field(min_length=5, max_length=1000)
+    ticker: str | None = None
+
+@app.post("/detect-stock")
+def detect_stock(p: DetectionInput):
+    if p.ticker is not None:
+        ticker=p.ticker.strip().upper()
+        if not check_symbol_format(ticker): raise unsupported_ticker(ticker)
+        price_data(ticker)
+        name=COMPANY_NAMES.get(ticker, ticker)
+    else:
+        ticker,name=resolve_question_ticker(p.question)
+    return {"ticker":ticker,"company_name":name}
+
+
 class AnalysisInput(BaseModel):
     question: str = Field(min_length=5,max_length=1000)
-    ticker: str = "AAPL"
+    ticker: str | None = None
     model: Literal["qwen2.5:3b","llama3.2:3b"] = "qwen2.5:3b"
     mode: Literal["none","fixed","agentic"] = "agentic"
     evaluation: bool = False
@@ -391,7 +439,7 @@ class AnalysisInput(BaseModel):
 @app.post("/prepare")
 def prepare(p:AnalysisInput):
     # Evaluation uses only frozen dated source cards to avoid changing answers and future leakage.
-    ticker=p.ticker.upper()
+    ticker=(p.ticker or "").upper()
     if not check_symbol_format(ticker): raise unsupported_ticker(ticker)
     if not p.question.strip() or len(p.question.strip())<5: raise HTTPException(422,"Enter a research question of at least five non-space characters")
     if p.evaluation and ticker not in SEEDED_CORPUS_TICKERS:
@@ -415,10 +463,17 @@ def prepare(p:AnalysisInput):
 @app.post("/research")
 def research(p:AnalysisInput):
     if not p.question.strip() or len(p.question.strip())<5: raise HTTPException(422,"Enter a research question of at least five non-space characters")
-    if not check_symbol_format(p.ticker.upper()): raise unsupported_ticker(p.ticker)
+    if p.ticker is not None:
+        ticker=p.ticker.strip().upper()
+        if not check_symbol_format(ticker): raise unsupported_ticker(p.ticker)
+        name=COMPANY_NAMES.get(ticker, ticker)
+    else:
+        ticker,name=resolve_question_ticker(p.question)
+    payload=p.model_dump()
+    payload["ticker"]=ticker
     try:
         with httpx.Client(timeout=300) as client:
-            r=client.post(N8N+"/webhook/agenttrade-analyze",json=p.model_dump())
+            r=client.post(N8N+"/webhook/agenttrade-analyze",json=payload)
             r.raise_for_status()
             result=r.json()
             if not isinstance(result, dict) or not isinstance(result.get("answer"),str):
@@ -431,6 +486,8 @@ def research(p:AnalysisInput):
                 raise HTTPException(502,"Research summary differs from the final answer. Check the n8n workflow output.")
             result["simple_summary"]=summary
             result["technical_detail"]=details
+            result["ticker"]=ticker
+            result["company_name"]=name
             return result
     except httpx.HTTPStatusError as exc:
         raise HTTPException(503,"Research workflow rejected the request. Check the n8n execution log and imported workflow settings.") from exc
