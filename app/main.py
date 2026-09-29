@@ -420,7 +420,18 @@ def research(p:AnalysisInput):
         with httpx.Client(timeout=300) as client:
             r=client.post(N8N+"/webhook/agenttrade-analyze",json=p.model_dump())
             r.raise_for_status()
-            return r.json()
+            result=r.json()
+            if not isinstance(result, dict) or not isinstance(result.get("answer"),str):
+                raise HTTPException(502,"Research returned an unexpected answer. Check the n8n workflow output.")
+            match=re.fullmatch(r"\s*Simple summary:\s*\n(.+?)\n\s*Technical details:\s*\n(.+)\s*",result["answer"],re.I|re.S)
+            if not match or not match.group(1).strip() or not match.group(2).strip():
+                raise HTTPException(502,"Research did not return a simple summary and technical details. Re-import and publish the updated n8n workflow, then retry.")
+            summary,details=match.group(1).strip(),match.group(2).strip()
+            if result.get("simple_summary") not in (None,"",summary):
+                raise HTTPException(502,"Research summary differs from the final answer. Check the n8n workflow output.")
+            result["simple_summary"]=summary
+            result["technical_detail"]=details
+            return result
     except httpx.HTTPStatusError as exc:
         raise HTTPException(503,"Research workflow rejected the request. Check the n8n execution log and imported workflow settings.") from exc
     except (httpx.RequestError, ValueError) as exc:
