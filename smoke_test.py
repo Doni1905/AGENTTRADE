@@ -64,10 +64,37 @@ r = client.post("/proposal", json={"ticker": "TSLA", "side": "BUY", "quantity": 
 check("valid non-seeded ticker accepted", r.status_code == 200 and r.json()["ticker"] == "TSLA")
 
 r = client.post("/prepare", json={"question": "What is the max paper order notional?", "ticker": "TSLA", "evaluation": True})
-check("prepare flags unseeded ticker", r.status_code == 200 and r.json()["ticker_seeded_in_corpus"] is False and "No seeded evidence cards" in r.json()["warning"])
+check("evaluation rejects unseeded ticker", r.status_code == 400 and "Frozen evaluation" in r.json()["detail"])
 
 r = client.post("/prepare", json={"question": "What is the max paper order notional?", "ticker": "AAPL", "evaluation": True})
 check("prepare flags seeded ticker", r.status_code == 200 and r.json()["ticker_seeded_in_corpus"] is True)
+
+# Stub public ticker detail and Qdrant upsert; no network, seeds unchanged.
+class FakeTicker:
+    info = {"shortName": "Example Corp", "marketCap": 120000000}
+    news = [{"title":"Example expands service","publisher":"Example News",
+             "providerPublishTime":int(main.datetime.now(main.timezone.utc).timestamp()),
+             "link":"https://example.org/article"}]
+
+original_ticker = main.yf.Ticker
+original_upsert = main.upsert_live_evidence
+main.yf.Ticker = lambda ticker: FakeTicker()
+ingested=[]
+main.upsert_live_evidence = lambda cards: ingested.extend(cards) or len(cards)
+seed_before = main.CORPUS.read_bytes()
+r = client.post("/prepare", json={"question":"What supports TSLA research?","ticker":"TSLA"})
+check("unseeded ticker generates live evidence", r.status_code == 200 and len(ingested) >= 2 and
+      all(d["ticker"] == "TSLA" and d["evidence_type"] == "live" and d["id"] > 7 for d in ingested))
+check("coverage notes headlines", r.json().get("evidence_coverage",{}).get("news_cards") == 1)
+check("seed file stays unchanged", main.CORPUS.read_bytes() == seed_before)
+FakeTicker.news = []
+ingested.clear()
+r = client.post("/prepare", json={"question":"What supports TSLA research?","ticker":"TSLA"})
+check("no-news fallback uses stats and price", r.status_code == 200 and
+      {d["kind"] for d in ingested} == {"price", "stats"} and
+      r.json()["evidence_coverage"]["news_cards"] == 0 and "Headline coverage unavailable" in r.json()["warning"])
+main.yf.Ticker = original_ticker
+main.upsert_live_evidence = original_upsert
 
 bad = client.post("/proposal", json={"ticker": "AAPL", "side": "BUY", "quantity": 10, "rationale": "too many shares for the limit"})
 check("risk limit rejects 10 shares", bad.status_code == 422)
