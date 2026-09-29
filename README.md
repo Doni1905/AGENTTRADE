@@ -5,6 +5,7 @@ AGENTTRADE is a local stock-research tool for US-listed equities. It combines n8
 ## Features
 
 - Any valid US-listed symbol for research and paper proposals: symbols are validated live against Yahoo Finance, and unknown symbols are rejected with a clear error. For research, dated live evidence cards for the requested symbol are built from Yahoo Finance price history, available statistics and recent headlines, then upserted alongside frozen benchmark cards in Qdrant.
+- Each research answer starts with a 2-4 sentence **Simple summary** for readers without a finance background. Technical details follow with a BUY/HOLD/SELL decision where relevant, dated evidence, and brief plain-word explanations of financial terms. An unrelated question gets no forced trading decision.
 - Three research modes: no retrieval (`none`), fixed top-3 retrieval (`fixed`), and agent-selected Qdrant retrieval (`agentic`).
 - Retrieval and analyst roles, short bull/bear arguments and a critic judge, followed by one bounded correction pass.
 - Local models: `qwen2.5:3b` and `llama3.2:3b`; `nomic-embed-text` for embeddings.
@@ -120,7 +121,7 @@ curl -sS http://localhost:5678/webhook/agenttrade-analyze \
   -d '{"question":"What is the max paper order notional?","ticker":"AAPL","mode":"agentic","model":"qwen2.5:3b","evaluation":true}'
 ```
 
-`evaluation:true` accepts only AAPL or MSFT and uses frozen educational cards without fetching current prices. Run the benchmark on a clean Qdrant volume before doing live research; live cards already stored in the shared collection could contaminate agentic retrieval. Re-running `/ingest` does not delete live cards. For indicator context, use `evaluation:false`; the API fetches current Yahoo Finance data and fails closed if it is unavailable or stale. Set `mode` to `none`, `fixed`, or `agentic` to compare retrieval behavior. Inspect the n8n execution trace to confirm tool calls in agentic mode. An answer is never an order.
+`evaluation:true` accepts only AAPL or MSFT and uses frozen educational cards without fetching current prices. Run the benchmark on a clean Qdrant volume before doing live research; live cards already stored in the shared collection could contaminate agentic retrieval. Re-running `/ingest` does not delete live cards. For indicator context, use `evaluation:false`; the API fetches current Yahoo Finance data and fails closed if it is unavailable or stale. Set `mode` to `none`, `fixed`, or `agentic` to compare retrieval behavior. Inspect the n8n execution trace to confirm tool calls in agentic mode. The dashboard puts the Simple summary first, then technical details. `/research` returns `simple_summary`, `technical_detail`, and the complete `answer`; if an old n8n import does not supply the required format, it shows an error rather than presenting a jargon-only answer. Re-import and publish the updated `workflows/research.json` after pulling; previous imports do not update automatically. An answer is never an order.
 
 ### Submit a human-approved paper order
 
