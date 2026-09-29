@@ -132,9 +132,9 @@ curl http://localhost:8000/snapshot/AAPL
 
 Then use the dashboard at [http://localhost:8000](http://localhost:8000):
 
-1. In **New trade proposal**, type the symbol (any valid US-listed ticker), choose the side and quantity, and give a rationale. The server takes a fresh price snapshot, applies the risk limits, and creates a pending proposal. A proposal is not an order.
+1. In **New trade proposal**, type the symbol (any valid US-listed ticker), choose the side and quantity, and give a rationale. The server takes a fresh price snapshot and applies risk limits. With Alpaca paper keys configured, it checks live account status, available shares before a SELL, and buying power (with a 2% cushion) and the five-share limit before a BUY. Insufficient capacity or a failed account check returns a reason immediately and creates no pending proposal. Without keys, proposals remain local but approval cannot submit an order. A proposal is not an order.
 2. In **Pending approval**, review the proposal details. The approval code is pre-filled from your local `.env` by the server; your click is the human gate. Choose **Approve** or **Reject**.
-3. Approving re-runs the expiry, price-move, and risk checks before a market order is sent to `https://paper-api.alpaca.markets`. Rejecting closes the proposal. The **Ledger** section updates after each decision.
+3. Approving re-runs expiry, price-move, risk and paper account capacity checks (positions or buying power can change). Broker rejection messages appear in the dashboard; check Alpaca before retrying an uncertain order. A successful approval sends a market order to `https://paper-api.alpaca.markets`. Rejecting closes the proposal. The **Ledger** section updates after each decision.
 
 Proposals expire 30 minutes after creation. The ledger records submission, not a guaranteed fill; confirm final status in the Alpaca paper dashboard. The pre-filled code is visible to anyone who can open the local page, so keep the ports bound to `127.0.0.1` and never expose them to the internet. Never enter live account credentials.
 
