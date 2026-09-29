@@ -1,9 +1,10 @@
 # AGENTTRADE
 
-AGENTTRADE is a local stock-research prototype for `AAPL` and `MSFT`. It combines n8n workflows, local Ollama models, Qdrant retrieval, and a Python API to compare research approaches and submit **paper-only** orders through Alpaca after explicit human approval. It is an educational project, not an investment adviser or a live-trading system.
+AGENTTRADE is a local stock-research prototype for US-listed equities. It combines n8n workflows, local Ollama models, Qdrant retrieval, and a Python API to compare research approaches and submit **paper-only** orders through Alpaca after explicit human approval. It is an educational project, not an investment adviser or a live-trading system.
 
 ## Features
 
+- Any valid US-listed symbol for research and paper proposals: symbols are validated live against Yahoo Finance, and unknown symbols are rejected with a clear error. The seeded evidence corpus covers `AAPL` and `MSFT`; other symbols research from the live market snapshot (see Limitations).
 - Three research modes: no retrieval (`none`), fixed top-3 retrieval (`fixed`), and agent-selected Qdrant retrieval (`agentic`).
 - Separate retrieval, analyst, and critic roles, followed by one bounded correction pass.
 - Local models: `qwen2.5:3b` and `llama3.2:3b`; `nomic-embed-text` for embeddings.
@@ -131,7 +132,7 @@ curl http://localhost:8000/snapshot/AAPL
 
 Then use the dashboard at [http://localhost:8000](http://localhost:8000):
 
-1. In **New trade proposal**, choose the symbol, side, and quantity and give a rationale. The server takes a fresh price snapshot, applies the risk limits, and creates a pending proposal. A proposal is not an order.
+1. In **New trade proposal**, type the symbol (any valid US-listed ticker), choose the side and quantity, and give a rationale. The server takes a fresh price snapshot, applies the risk limits, and creates a pending proposal. A proposal is not an order.
 2. In **Pending approval**, review the proposal details. The approval code is pre-filled from your local `.env` by the server; your click is the human gate. Choose **Approve** or **Reject**.
 3. Approving re-runs the expiry, price-move, and risk checks before a market order is sent to `https://paper-api.alpaca.markets`. Rejecting closes the proposal. The **Ledger** section updates after each decision.
 
@@ -199,7 +200,8 @@ AGENTTRADE/
 
 ## Limitations and safety
 
-- Educational and **paper-only**: supported symbols are `AAPL` and `MSFT`. Do not use the output for real investment decisions.
+- Educational and **paper-only**: any valid US-listed symbol is accepted after a live Yahoo Finance check; unknown symbols are rejected with an `Unsupported ticker` error. Alpaca paper accounts trade US-listed securities only. Do not use the output for real investment decisions.
+- The seeded evidence corpus covers only `AAPL` and `MSFT`. For any other symbol, retrieval finds no ticker-specific cards, so the analyst relies on the live market snapshot and the general policy cards, and the API marks the run with `ticker_seeded_in_corpus: false`. The evaluation benchmark stays on the seeded `AAPL`/`MSFT` questions by design. To extend retrieval to another ticker, add dated synthetic cards for it to `data/corpus.json` and re-run `curl -X POST http://localhost:8000/ingest`.
 - The evidence corpus is synthetic and cannot establish actual company news or fundamentals. Yahoo Finance data is unofficial or delayed and is not a point-in-time historical feed.
 - The n8n workflow JSON was structurally checked, but the stack and workflows were **not run end to end in the build environment**. No measured benchmark results are bundled; import, credential selection, and runtime behavior require validation on your machine.
 - The API has unauthenticated local endpoints; the approval endpoint requires the private code. Compose binds exposed ports to `127.0.0.1`. Do not publish them externally.
