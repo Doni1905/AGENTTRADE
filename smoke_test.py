@@ -197,3 +197,58 @@ if failures:
     print(f"\n{len(failures)} check(s) failed")
     sys.exit(1)
 print("Paper pre-flight smoke checks passed.")
+
+
+# Portfolio uses broker-owned state, not inferred fills from the local order ledger.
+r=client.get('/portfolio')
+check('no-keys portfolio is explicitly unconfigured',r.status_code==200 and r.json()['configured'] is False)
+class PortfolioClient(FakePaperClient):
+    def get(self,url,**kwargs):
+        if url.endswith('/v2/account'):return FakePaperResponse(200,{"status":"ACTIVE","cash":"800","buying_power":"1000","equity":"1100"})
+        if url.endswith('/v2/positions'):return FakePaperResponse(200,[{"symbol":"AAPL","qty":"2","market_value":"500","unrealized_pl":"42"}])
+        if '/v2/account/portfolio/history' in url:return FakePaperResponse(200,{"timestamp":[1727568000,1727654400],"profit_loss":[0,42]})
+        raise AssertionError(url)
+main.httpx.Client=PortfolioClient
+os.environ['ALPACA_PAPER_KEY_ID']='stub-paper-key';os.environ['ALPACA_PAPER_SECRET_KEY']='stub-paper-secret'
+r=client.get('/portfolio'); body=r.json()
+check('broker portfolio and real P&L points shown',r.status_code==200 and body.get('cash')==800 and body.get('positions',[{}])[0].get('symbol')=='AAPL' and body.get('profit_loss_history',[{},{}])[-1].get('profit_loss')==42)
+main.httpx.Client=original_client
+os.environ.pop('ALPACA_PAPER_KEY_ID');os.environ.pop('ALPACA_PAPER_SECRET_KEY')
+
+# NewsAPI is optional, bounded, and headline-only; fake response never calls the network.
+class NewsResponse(FakePaperResponse):
+    def raise_for_status(self): pass
+class NewsClient:
+    def __init__(self,**kwargs):pass
+    def __enter__(self):return self
+    def __exit__(self,*args):pass
+    def get(self,url,**kwargs):
+        assert url=='https://newsapi.org/v2/everything'
+        assert kwargs['headers']['X-Api-Key']=='fake-key'
+        return NewsResponse(200,{"articles":[{"title":"Apple quarterly update","source":{"name":"Mock publisher"},"publishedAt":main.datetime.now(main.timezone.utc).isoformat(),"url":"https://example.org/news"}]})
+main.httpx.Client=NewsClient
+os.environ['NEWSAPI_KEY']='fake-key'
+cards,coverage=main.live_evidence_cards('AAPL',FAKE_SNAPSHOT,FakeTicker())
+check('optional NewsAPI feed creates a sourced dated card',coverage['news_source'].startswith('NewsAPI') and any(c['kind']=='news-0' and 'Mock publisher' in c['text'] for c in cards))
+main.httpx.Client=original_client
+os.environ.pop('NEWSAPI_KEY')
+
+# Synthetic evaluator output: no model run required; one repeat must not claim consistency.
+import importlib.util
+spec=importlib.util.spec_from_file_location('evaluate',ROOT/'app'/'evaluate.py')
+evaluate=importlib.util.module_from_spec(spec);spec.loader.exec_module(evaluate)
+class FakeEvaluationClient:
+    def __init__(self,**kwargs):pass
+    def __enter__(self):return self
+    def __exit__(self,*args):pass
+    def post(self,*args,**kwargs):return NewsResponse(200,{"answer":"source [doc 1] because policy"})
+evaluate.httpx.Client=FakeEvaluationClient
+with tempfile.TemporaryDirectory() as folder:
+    result_dir=Path(folder)/'results'; report=Path(folder)/'REPORT.md'
+    report.write_text('Before\n<!-- EVAL_RESULTS_START -->\nNot measured.\n<!-- EVAL_RESULTS_END -->\nAfter\n')
+    evaluate.run('http://localhost:5678/fake',['qwen2.5:3b','llama3.2:3b'],1,result_dir,report)
+    sums=__import__('json').loads((result_dir/'summary.json').read_text())
+    check('evaluation writes six rows and report from completed responses',len(sums)==6 and all(x['successful']==25 for x in sums) and '| qwen2.5:3b |' in report.read_text())
+    check('one-repeat consistency is n/a rather than 100%',all(x['exact_response_consistency'] is None for x in sums) and 'n/a' in report.read_text())
+if failures:raise SystemExit(f'{len(failures)} smoke check(s) failed')
+print('Portfolio, NewsAPI and evaluator smoke checks passed.')
