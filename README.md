@@ -10,7 +10,7 @@ AGENTTRADE is a local stock-research tool for US-listed equities. It combines n8
 - Local models: `qwen2.5:3b` and `llama3.2:3b`; `nomic-embed-text` for embeddings.
 - Python-calculated market indicators and deterministic proposal/risk checks. Research output cannot place an order.
 - A dashboard approval flow for Alpaca paper orders: pending proposals, one-click approve or reject, local approval code, proposal expiry, and duplicate-order checks. An n8n approval form is included as an alternative path.
-- A 25-question benchmark comparing three retrieval modes across both models; the evaluator writes raw responses, measured summaries, and the report table after a local run. A paper portfolio reads broker positions and historical profit/loss.
+- A 25-question benchmark comparing three retrieval modes across both models; the evaluator writes raw responses, measured summaries, and the report table after a local run. A dedicated paper portfolio page reads broker positions, historical profit/loss, and recent broker orders/fills.
 
 ## Architecture
 
@@ -131,7 +131,9 @@ docker compose up -d --force-recreate api
 curl http://localhost:8000/snapshot/AAPL
 ```
 
-Then use the dashboard at [http://localhost:8000](http://localhost:8000):
+Use the research dashboard at [http://localhost:8000](http://localhost:8000). The separate [portfolio page](http://localhost:8000/portfolio) shows Alpaca paper account equity, cash, buying power, current positions, a one-month broker P&L chart, and recent broker orders with filled quantities and prices. Use Refresh to reload. Without paper keys it shows setup guidance rather than invented holdings. The data endpoint is `/api/portfolio`. Neither page has login; keep it local.
+
+To submit a proposal on the research dashboard:
 
 1. In **New trade proposal**, type the symbol (any valid US-listed ticker), choose the side and quantity, and give a rationale. The server takes a fresh price snapshot and applies risk limits. With Alpaca paper keys configured, it checks live account status, available shares before a SELL, and buying power (with a 2% cushion) and the five-share limit before a BUY. Insufficient capacity or a failed account check returns a reason immediately and creates no pending proposal. Without keys, proposals remain local but approval cannot submit an order. A proposal is not an order.
 2. In **Pending approval**, review the proposal details. The approval code is pre-filled from your local `.env` by the server; your click is the human gate. Choose **Approve** or **Reject**.
@@ -181,6 +183,7 @@ python3 smoke_test.py
 AGENTTRADE/
 ├── app/
 │   ├── dashboard.html    # Research dashboard
+│   ├── portfolio.html    # Separate paper portfolio page
 │   ├── evaluate.py       # Benchmark runner
 │   └── main.py           # API, ingestion, risk checks, paper-order ledger
 ├── data/
@@ -218,4 +221,4 @@ AGENTTRADE/
 
 ### Local-use boundary
 
-The dashboard is designed for one user on localhost. Do not expose it or n8n, Qdrant or Ollama publicly: research and portfolio reads have no login and the approval code is embedded in the local dashboard. Add authentication and secure secret storage before multi-user deployment. The chart uses Alpaca paper portfolio-history profit/loss, not a P&L reconstructed from order submissions; verify fills and cash movements at Alpaca. NewsAPI free Developer access is **not a production news license**.
+The dashboard is designed for one user on localhost. Do not expose it or n8n, Qdrant or Ollama publicly: research and portfolio reads have no login and the approval code is embedded in the local dashboard. Add authentication and secure secret storage before multi-user deployment. The portfolio page reads the broker's recent orders and filled quantities rather than treating ledger submissions as fills. Its chart uses Alpaca paper portfolio-history profit/loss, not a P&L reconstructed from order submissions; verify fills and cash movements at Alpaca. NewsAPI free Developer access is **not a production news license**.
