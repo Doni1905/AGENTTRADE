@@ -56,6 +56,9 @@ check("health reports seeded corpus", r.json()["seeded_corpus_tickers"] == ["AAP
 r = client.get("/")
 check("dashboard renders", r.status_code == 200 and "Pending approval" in r.text)
 check("approval code injected into dashboard", "smoke-test-code" in r.text)
+check('research page links to portfolio, without embedded portfolio data', 'href="/portfolio"' in r.text and 'id="portfolio"' not in r.text)
+r=client.get('/portfolio')
+check('dedicated portfolio page renders',r.status_code==200 and 'Current positions' in r.text and 'Recent paper orders' in r.text and 'href="/"' in r.text and '/api/portfolio' in r.text)
 
 bad = client.post("/proposal", json={"ticker": "TSLA!", "side": "BUY", "quantity": 1, "rationale": "malformed symbol test"})
 check("malformed symbol rejected", bad.status_code == 400)
@@ -200,18 +203,19 @@ print("Paper pre-flight smoke checks passed.")
 
 
 # Portfolio uses broker-owned state, not inferred fills from the local order ledger.
-r=client.get('/portfolio')
+r=client.get('/api/portfolio')
 check('no-keys portfolio is explicitly unconfigured',r.status_code==200 and r.json()['configured'] is False)
 class PortfolioClient(FakePaperClient):
     def get(self,url,**kwargs):
         if url.endswith('/v2/account'):return FakePaperResponse(200,{"status":"ACTIVE","cash":"800","buying_power":"1000","equity":"1100"})
         if url.endswith('/v2/positions'):return FakePaperResponse(200,[{"symbol":"AAPL","qty":"2","market_value":"500","unrealized_pl":"42"}])
         if '/v2/account/portfolio/history' in url:return FakePaperResponse(200,{"timestamp":[1727568000,1727654400],"profit_loss":[0,42]})
+        if '/v2/orders?' in url:return FakePaperResponse(200,[{"symbol":"AAPL","side":"buy","qty":"2","filled_qty":"2","status":"filled","submitted_at":"2026-09-29T09:00:00Z","filled_at":"2026-09-29T09:01:00Z","filled_avg_price":"250"}])
         raise AssertionError(url)
 main.httpx.Client=PortfolioClient
 os.environ['ALPACA_PAPER_KEY_ID']='stub-paper-key';os.environ['ALPACA_PAPER_SECRET_KEY']='stub-paper-secret'
-r=client.get('/portfolio'); body=r.json()
-check('broker portfolio and real P&L points shown',r.status_code==200 and body.get('cash')==800 and body.get('positions',[{}])[0].get('symbol')=='AAPL' and body.get('profit_loss_history',[{},{}])[-1].get('profit_loss')==42)
+r=client.get('/api/portfolio'); body=r.json()
+check('broker portfolio and real P&L points shown',r.status_code==200 and body.get('cash')==800 and body.get('positions',[{}])[0].get('symbol')=='AAPL' and body.get('profit_loss_history',[{},{}])[-1].get('profit_loss')==42 and body['orders'][0]['status']=='filled' and body['orders'][0]['filled_qty']==2)
 main.httpx.Client=original_client
 os.environ.pop('ALPACA_PAPER_KEY_ID');os.environ.pop('ALPACA_PAPER_SECRET_KEY')
 
