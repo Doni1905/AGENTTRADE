@@ -60,6 +60,37 @@ check('research page links to portfolio, without embedded portfolio data', 'href
 r=client.get('/portfolio')
 check('dedicated portfolio page renders',r.status_code==200 and 'Current positions' in r.text and 'Recent paper orders' in r.text and 'href="/"' in r.text and '/api/portfolio' in r.text)
 
+# Research contract: a plain-language summary is kept separate from technical detail.
+class ResearchResponse:
+    def __init__(self, payload): self.payload = payload
+    def raise_for_status(self): pass
+    def json(self): return self.payload
+class ResearchClient:
+    payload = {}
+    def __init__(self, **kwargs): pass
+    def __enter__(self): return self
+    def __exit__(self, *args): pass
+    def post(self, url, **kwargs):
+        assert url.endswith('/webhook/agenttrade-analyze')
+        return ResearchResponse(self.payload)
+original_research_client=main.httpx.Client
+main.httpx.Client=ResearchClient
+ResearchClient.payload={"answer":"Simple summary:\nThe evidence is too thin to say whether this stock is a good buy. Wait for more information.\n\nTechnical details:\nDecision: HOLD\nSource evidence is insufficient [doc 1].", "simple_summary":"The evidence is too thin to say whether this stock is a good buy. Wait for more information.", "mode":"agentic"}
+r=client.post('/research',json={"question":"Should I buy AAPL shares?","ticker":"AAPL"})
+check('research separates simple summary and technical details',r.status_code==200 and r.json().get('simple_summary','').startswith('The evidence') and r.json().get('technical_detail','').startswith('Decision: HOLD') and r.json().get('answer','').startswith('Simple summary:'))
+ResearchClient.payload={"answer":"Decision: BUY. RSI14 67, MACD 1.2."}
+r=client.post('/research',json={"question":"Should I buy AAPL shares?","ticker":"AAPL"})
+check('jargon-only legacy research rejected',r.status_code==502 and 'simple summary' in r.json()['detail'])
+ResearchClient.payload={"answer":"Simple summary:\nWait for more information.\n\nTechnical details:\nDecision: HOLD", "simple_summary":"Buy now."}
+r=client.post('/research',json={"question":"Should I buy AAPL shares?","ticker":"AAPL"})
+check('mismatched summary and detail rejected',r.status_code==502 and 'differs' in r.json()['detail'])
+main.httpx.Client=original_research_client
+check('dashboard highlights summary before details', 'className=\'simple-summary\'' in client.get('/').text and 'data.technical_detail' in client.get('/').text)
+import json
+workflow=json.loads((ROOT/'workflows/research.json').read_text())
+node={n['name']:n for n in workflow['nodes']}
+check('workflow enforces plain-language final output',all('plain' in node[name]['parameters']['options']['systemMessage'].lower() or 'everyday' in node[name]['parameters']['options']['systemMessage'].lower() for name in ('2 Analyst agent','3 Bull case','4 Bear case','5 Critic judge','Bounded correction (one pass)')) and any(a['name']=='simple_summary' for a in node['Return auditable answer']['parameters']['assignments']['assignments']))
+
 bad = client.post("/proposal", json={"ticker": "TSLA!", "side": "BUY", "quantity": 1, "rationale": "malformed symbol test"})
 check("malformed symbol rejected", bad.status_code == 400)
 
