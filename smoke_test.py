@@ -30,10 +30,11 @@ FAKE_SNAPSHOT = {
     "rsi14": 55.0, "macd": 1.2, "signal_line": 1.0, "data_source": "smoke test fake",
 }
 def _fake_price_data(ticker):
-    if ticker not in main.ALLOWED:
-        from fastapi import HTTPException
-        raise HTTPException(400, "unsupported ticker")
-    return FAKE_SNAPSHOT
+    # Mirrors the real checks: malformed symbols fail offline; unknown symbols would
+    # fail against live market data, which these tests never touch.
+    if not main.check_symbol_format(ticker):
+        raise main.unsupported_ticker(ticker)
+    return {**FAKE_SNAPSHOT, "ticker": ticker}
 
 
 main.price_data = _fake_price_data
@@ -50,13 +51,23 @@ def check(name, condition):
 
 r = client.get("/health")
 check("health endpoint", r.status_code == 200 and r.json()["status"] == "ok")
+check("health reports seeded corpus", r.json()["seeded_corpus_tickers"] == ["AAPL", "MSFT"])
 
 r = client.get("/")
 check("dashboard renders", r.status_code == 200 and "Pending approval" in r.text)
 check("approval code injected into dashboard", "smoke-test-code" in r.text)
 
-bad = client.post("/proposal", json={"ticker": "TSLA", "side": "BUY", "quantity": 1, "rationale": "unsupported ticker test"})
-check("unsupported ticker rejected", bad.status_code == 400)
+bad = client.post("/proposal", json={"ticker": "TSLA!", "side": "BUY", "quantity": 1, "rationale": "malformed symbol test"})
+check("malformed symbol rejected", bad.status_code == 400)
+
+r = client.post("/proposal", json={"ticker": "TSLA", "side": "BUY", "quantity": 1, "rationale": "valid ticker outside the seeded corpus"})
+check("valid non-seeded ticker accepted", r.status_code == 200 and r.json()["ticker"] == "TSLA")
+
+r = client.post("/prepare", json={"question": "What is the max paper order notional?", "ticker": "TSLA", "evaluation": True})
+check("prepare flags unseeded ticker", r.status_code == 200 and r.json()["ticker_seeded_in_corpus"] is False and "No seeded evidence cards" in r.json()["warning"])
+
+r = client.post("/prepare", json={"question": "What is the max paper order notional?", "ticker": "AAPL", "evaluation": True})
+check("prepare flags seeded ticker", r.status_code == 200 and r.json()["ticker_seeded_in_corpus"] is True)
 
 bad = client.post("/proposal", json={"ticker": "AAPL", "side": "BUY", "quantity": 10, "rationale": "too many shares for the limit"})
 check("risk limit rejects 10 shares", bad.status_code == 422)
