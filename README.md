@@ -1,16 +1,16 @@
 # AGENTTRADE
 
-AGENTTRADE is a local stock-research prototype for US-listed equities. It combines n8n workflows, local Ollama models, Qdrant retrieval, and a Python API to compare research approaches and submit **paper-only** orders through Alpaca after explicit human approval. It is an educational project, not an investment adviser or a live-trading system.
+AGENTTRADE is a local local stock-research tool for US-listed equities. It combines n8n workflows, local Ollama models, Qdrant retrieval, and a Python API to compare research approaches and submit **paper-only** orders through Alpaca after explicit human approval. It is an educational project, not an investment adviser or a live-trading system.
 
 ## Features
 
 - Any valid US-listed symbol for research and paper proposals: symbols are validated live against Yahoo Finance, and unknown symbols are rejected with a clear error. For research, dated live evidence cards for the requested symbol are built from Yahoo Finance price history, available statistics and recent headlines, then upserted alongside frozen benchmark cards in Qdrant.
 - Three research modes: no retrieval (`none`), fixed top-3 retrieval (`fixed`), and agent-selected Qdrant retrieval (`agentic`).
-- Separate retrieval, analyst, and critic roles, followed by one bounded correction pass.
+- Retrieval and analyst roles, short bull/bear arguments and a critic judge, followed by one bounded correction pass.
 - Local models: `qwen2.5:3b` and `llama3.2:3b`; `nomic-embed-text` for embeddings.
 - Python-calculated market indicators and deterministic proposal/risk checks. Research output cannot place an order.
 - A dashboard approval flow for Alpaca paper orders: pending proposals, one-click approve or reject, local approval code, proposal expiry, and duplicate-order checks. An n8n approval form is included as an alternative path.
-- A 25-question benchmark comparing three retrieval modes across both models; raw responses and summary scores are written locally.
+- A 25-question benchmark comparing three retrieval modes across both models; the evaluator writes raw responses, measured summaries, and the report table after a local run. A paper portfolio reads broker positions and historical profit/loss.
 
 ## Architecture
 
@@ -20,7 +20,7 @@ Docker Compose (containers):  qdrant (evidence store) + api (FastAPI service)
 
 Research request -> n8n research workflow -> Python API (prepare, data, fixed retrieval)
                                         |-> Qdrant + Ollama: retrieval agent (agentic mode)
-                                        |-> Ollama: analyst -> critic -> one correction -> answer
+                                        |-> Ollama: analyst -> bull -> bear -> critic judge -> one correction -> answer
 
 Human -> dashboard approval (or n8n form) -> Python API (risk recheck, SQLite ledger)
                            -> Alpaca paper API (order submission only)
@@ -84,7 +84,7 @@ Run these commands on the machine hosting the stack. On Windows PowerShell, repl
    npx n8n
    ```
 
-   Open [n8n](http://localhost:5678) and create its local owner account. Re-import the updated research workflow if you previously imported v1.2 (the old n8n copy does not update automatically). Use **Import from File** to import both `workflows/research.json` and `workflows/approval.json`. Then:
+   Open [n8n](http://localhost:5678) and create its local owner account. Re-import the updated research workflow after pulling this version (the old imported copy will not update) (the old n8n copy does not update automatically). Use **Import from File** to import both `workflows/research.json` and `workflows/approval.json`. Then:
 
    - Create Ollama credentials using `http://localhost:11434` and Qdrant credentials using `http://localhost:6333`, and assign them to the matching model, embedding, and Qdrant nodes. If the Qdrant credential form requires an API key, an arbitrary local value is sufficient because Qdrant authentication is disabled in this setup.
    - In each workflow, open the HTTP Request node and change its URL to the host API address: `http://localhost:8000/prepare` in the research workflow and `http://localhost:8000/approval` in the approval workflow. The exported files use the Compose-internal hostname `http://api:8000/...`, which a native n8n process cannot resolve.
@@ -164,7 +164,7 @@ One repeat still runs 150 requests (25 questions x 3 modes x 2 models); use it t
 python3 app/evaluate.py --repeats 3
 ```
 
-Outputs are written to `results/raw.csv`, `results/summary.json`, and `results/RESULTS.md`. The accuracy and reasoning scores are term/citation proxies, not expert review. Check raw answers and citations manually before reporting conclusions.
+Outputs are written to `results/raw.csv`, `results/summary.json`, and `results/RESULTS.md`, and the measured table replaces the evaluation section of `docs/REPORT.md`. Commit that measured report only after inspecting raw answers and n8n traces. One repeat gives no valid consistency measurement (shown as n/a). The accuracy and reasoning scores are term/citation proxies, not expert review. Check raw answers and citations manually before reporting conclusions.
 
 ### Run the smoke tests
 
@@ -201,7 +201,7 @@ AGENTTRADE/
 ## Limitations and safety
 
 - Educational and **paper-only**: any valid US-listed symbol is accepted after a live Yahoo Finance check; unknown symbols are rejected with an `Unsupported ticker` error. Alpaca paper accounts trade US-listed securities only. Do not use the output for real investment decisions.
-- Live research for every requested valid symbol creates ticker-tagged, dated price, available key-statistics and up to five recent public headline cards; these are embedded and upserted into the same Qdrant collection without deleting the frozen seeds. When news is missing, price and available statistics still work; `evidence_coverage` reports the weaker coverage. The cards are refreshed on each run, not a full article or filings feed. The frozen benchmark uses the original 25 AAPL/MSFT questions and needs an uncontaminated Qdrant volume for a fair agentic comparison. To add permanent classroom cards, add dated entries to `data/corpus.json` and run `/ingest`. Historical synthetic policy card 3 mentions an obsolete AAPL/MSFT-only restriction; the live API risk rules, not this old card, define the current scope.
+- Live research for every requested valid symbol creates ticker-tagged, dated price, available key-statistics and up to five recent public headline cards; these are embedded and upserted into the same Qdrant collection without deleting the frozen seeds. When news is missing, price and available statistics still work; `evidence_coverage` reports the weaker coverage. The cards are refreshed on each run, not a full article or filings feed. Set optional `NEWSAPI_KEY` in `.env` for local development/testing news only; the NewsAPI free Developer plan is delayed by 24 hours, capped at 100 requests/day, and prohibited in staging/production, including internal production (https://newsapi.org/pricing). Without it, Yahoo Finance headline lookup remains the fallback. The frozen benchmark uses the original 25 AAPL/MSFT questions and needs an uncontaminated Qdrant volume for a fair agentic comparison. To add permanent classroom cards, add dated entries to `data/corpus.json` and run `/ingest`. Historical synthetic policy card 3 mentions an obsolete AAPL/MSFT-only restriction; the live API risk rules, not this old card, define the current scope.
 - The evidence corpus is synthetic and cannot establish actual company news or fundamentals. Yahoo Finance data is unofficial or delayed and is not a point-in-time historical feed.
 - The n8n workflow JSON was structurally checked, but the stack and workflows were **not run end to end in the build environment**. No measured benchmark results are bundled; import, credential selection, and runtime behavior require validation on your machine.
 - The API has unauthenticated local endpoints; the approval endpoint requires the private code. Compose binds exposed ports to `127.0.0.1`. Do not publish them externally.
@@ -213,3 +213,8 @@ AGENTTRADE/
 - [n8n Qdrant vector store](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.vectorstoreqdrant/)
 - [n8n Tools Agent](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/tools-agent/)
 - [yfinance](https://github.com/ranaroussi/yfinance)
+
+
+### Local-use boundary
+
+The dashboard is designed for one user on localhost. Do not expose it or n8n, Qdrant or Ollama publicly: research and portfolio reads have no login and the approval code is embedded in the local dashboard. Add authentication and secure secret storage before multi-user deployment. The chart uses Alpaca paper portfolio-history profit/loss, not a P&L reconstructed from order submissions; verify fills and cash movements at Alpaca. NewsAPI free Developer access is **not a production news license**.
