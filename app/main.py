@@ -111,6 +111,13 @@ def create_proposal(p:Proposal):
     ticker=p.ticker.upper(); market=price_data(ticker)
     errors=risk(ticker,p.side,p.quantity,market["price"])
     if errors: raise HTTPException(422,{"risk_errors":errors})
+    # Fail closed on a configured paper account before persisting a proposal.
+    if os.getenv("ALPACA_PAPER_KEY_ID") or os.getenv("ALPACA_PAPER_SECRET_KEY"):
+        headers=alpaca_headers()
+        with httpx.Client(timeout=25) as client:
+            account=alpaca_get(client,"/v2/account",headers)
+            positions=alpaca_get(client,"/v2/positions",headers)
+            check_paper_capacity(ticker,p.side,p.quantity,market["price"],account,positions)
     now=datetime.now(timezone.utc).isoformat()
     digest=hashlib.sha256(f"{now}|{ticker}|{p.side}|{p.quantity}".encode()).hexdigest()[:16]
     with conn() as c:
@@ -123,9 +130,42 @@ def alpaca_headers():
     if not key or not secret: raise HTTPException(503,"Alpaca paper keys not configured; no order placed")
     return {"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret}
 
+def check_paper_capacity(ticker,side,qty,price,account,positions):
+    if not isinstance(account,dict) or not isinstance(positions,list):
+        raise HTTPException(503,"Alpaca paper account state unavailable; no proposal created")
+    if account.get("status") != "ACTIVE": raise HTTPException(409,"Alpaca paper account not active")
+    try:
+        matches=[x for x in positions if isinstance(x,dict) and x.get("symbol")==ticker]
+        held=sum(float(x.get("qty_available",x.get("qty"))) for x in matches)
+        if not math.isfinite(held) or held < 0: raise ValueError()
+    except (TypeError,ValueError) as exc:
+        raise HTTPException(503,"Alpaca paper position unavailable; no proposal created") from exc
+    if side == "SELL" and held < qty:
+        raise HTTPException(409,f"You hold {held:g} available {ticker} paper shares - cannot sell {qty}")
+    if side == "BUY":
+        try:
+            buying_power=float(account["buying_power"])
+            if not math.isfinite(buying_power) or buying_power < 0: raise ValueError()
+        except (KeyError,TypeError,ValueError) as exc:
+            raise HTTPException(503,"Alpaca paper buying power unavailable; no proposal created") from exc
+        required=qty*price*1.02
+        if buying_power < required:
+            raise HTTPException(409,f"Insufficient Alpaca paper buying power: ${buying_power:,.2f} available; ${required:,.2f} needed including 2% price cushion")
+        if held + qty > 5:
+            raise HTTPException(409,f"Alpaca paper position would exceed five shares: {held:g} available {ticker} + {qty} proposed")
+
+
+def broker_error(response):
+    try:
+        body=response.json()
+        if isinstance(body,dict) and isinstance(body.get("message"),str): return body["message"][:500]
+    except (ValueError,TypeError): pass
+    return f"HTTP {response.status_code} (no broker message available)"
+
+
 def alpaca_get(client,path,headers):
     r=client.get("https://paper-api.alpaca.markets"+path,headers=headers)
-    if r.status_code>=400: raise HTTPException(503,f"Alpaca paper API status {r.status_code}; no local execution asserted")
+    if r.status_code>=400: raise HTTPException(503,f"Alpaca paper account check failed: {broker_error(r)}; no local execution asserted")
     return r.json()
 
 @app.post("/approval")
@@ -164,13 +204,8 @@ def _approve_locked(a:Approval):
             return {"proposal_id":a.proposal_id,"status":"submitted_to_alpaca","paper_only":True,"alpaca_order_id":receipt.get("id"),"alpaca_status":receipt.get("status"),"reconciled":True}
         if prior.status_code != 404: raise HTTPException(503,"Unable to reconcile prior paper order; check Alpaca dashboard")
         account=alpaca_get(client,"/v2/account",headers)
-        if account.get("status") != "ACTIVE": raise HTTPException(409,"Alpaca paper account not active")
-        if row["side"] == "BUY" and float(account.get("buying_power",0)) < row["qty"]*market["price"]*1.02:
-            raise HTTPException(409,"insufficient Alpaca paper buying power")
         positions=alpaca_get(client,"/v2/positions",headers)
-        held=next((float(x.get("qty_available",x.get("qty",0))) for x in positions if x.get("symbol")==row["ticker"]),0)
-        if row["side"] == "SELL" and held < row["qty"]: raise HTTPException(409,"insufficient Alpaca paper shares")
-        if row["side"] == "BUY" and held + row["qty"] > 5: raise HTTPException(409,"Alpaca paper position would exceed five shares")
+        check_paper_capacity(row["ticker"],row["side"],row["qty"],market["price"],account,positions)
         order={"symbol":row["ticker"],"qty":str(row["qty"]),"side":row["side"].lower(),"type":"market","time_in_force":"day","client_order_id":"agenttrade-"+a.proposal_id}
         response=client.post("https://paper-api.alpaca.markets/v2/orders",headers=headers,json=order)
         if response.status_code not in (200,201):
@@ -178,8 +213,8 @@ def _approve_locked(a:Approval):
             if response.status_code==422:
                 check=client.get("https://paper-api.alpaca.markets/v2/orders:by_client_order_id",headers=headers,params={"client_order_id":order["client_order_id"]})
                 if check.status_code==200: response=check
-                else: raise HTTPException(409,"Alpaca rejected order; check Alpaca dashboard before retrying")
-            else: raise HTTPException(503,f"Alpaca order status {response.status_code}; check dashboard before retrying")
+                else: raise HTTPException(409,f"Alpaca rejected order: {broker_error(response)}. Check Alpaca dashboard before retrying")
+            else: raise HTTPException(503,f"Alpaca order error: {broker_error(response)}. Check Alpaca dashboard before retrying")
         receipt=response.json()
     with conn() as c:
         c.execute("BEGIN IMMEDIATE")
