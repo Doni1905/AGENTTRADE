@@ -49,3 +49,8 @@ The research dashboard (`/`) handles research, approvals, and the local submissi
 ## Production boundary
 
 This is a local paper research tool, not a production financial service. No login protects the dashboard or research endpoints; approval code is rendered into the localhost page. Keep Docker ports bound to 127.0.0.1, do not expose the dashboard, n8n, Ollama or Qdrant publicly, and add authentication, secret handling, rate limits, data rights and operational monitoring before any multi-user deployment. Never use real-trading keys.
+
+
+### Natural-language research input
+
+The dashboard takes a single question rather than a separate ticker. The service extracts explicit uppercase tickers or a small, extensible common-name alias map and checks candidates against Yahoo before sending a resolved ticker to the unchanged n8n workflow. No stock or multiple distinct stocks prompts a fallback ticker field, not a guessed recommendation. The user confirms the detected stock before analysis begins. The response labels the detected company and ticker; the benchmark retains its explicit-ticker API path. This detection is deliberately narrow: unfamiliar company names need a ticker.
