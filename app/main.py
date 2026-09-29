@@ -1,6 +1,6 @@
 """Deterministic market data, retrieval ingestion and Alpaca paper-only orders."""
 import os, json, sqlite3, time, hashlib, math, re, secrets, threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Literal
 import httpx
@@ -48,7 +48,7 @@ def conn():
 class Proposal(BaseModel):
     ticker: str
     side: Literal["BUY", "SELL", "HOLD"]
-    quantity: int = Field(ge=0, le=10000)
+    quantity: int = Field(ge=1, le=5)
     rationale: str = Field(min_length=10, max_length=2000)
     # Market snapshot computed by server; incoming AI price is ignored.
 
@@ -84,9 +84,9 @@ def price_data(ticker: str):
 
 @app.get("/",response_class=HTMLResponse)
 def dashboard():
-    # The approval code is injected so the local dashboard can pre-fill it; the page is bound to localhost only.
+    # Local-only page; approval code is rendered here and must never be exposed publicly.
     html=(Path(__file__).parent/"dashboard.html").read_text()
-    return html.replace("__APPROVAL_CODE__", os.getenv("APPROVAL_CODE",""))
+    return html.replace("__APPROVAL_CODE__", json.dumps(os.getenv("APPROVAL_CODE", "")).replace("<", "\\u003c"))
 
 @app.get("/health")
 def health(): return {"status":"ok","symbol_universe":"any valid US-listed symbol, validated live via Yahoo Finance","seeded_corpus_tickers":sorted(SEEDED_CORPUS_TICKERS)}
@@ -226,6 +226,36 @@ def _approve_locked(a:Approval):
 def ledger():
     with conn() as c: return {"trades":[dict(x) for x in c.execute("SELECT * FROM trades ORDER BY id DESC LIMIT 100")],"proposals":[dict(x) for x in c.execute("SELECT * FROM proposals ORDER BY created DESC LIMIT 100")]}
 
+@app.get("/portfolio")
+def portfolio():
+    """Broker-owned positions and equity history, never inferred from unfilled ledger orders."""
+    if not (os.getenv("ALPACA_PAPER_KEY_ID") or os.getenv("ALPACA_PAPER_SECRET_KEY")):
+        return {"configured":False,"message":"Add Alpaca paper keys to show positions and equity history.","positions":[],"profit_loss_history":[]}
+    headers=alpaca_headers()
+    try:
+        with httpx.Client(timeout=25) as client:
+            account=alpaca_get(client,"/v2/account",headers)
+            positions=alpaca_get(client,"/v2/positions",headers)
+            history=alpaca_get(client,"/v2/account/portfolio/history?period=1M&timeframe=1D",headers)
+        if not isinstance(account,dict) or not isinstance(positions,list) or not isinstance(history,dict): raise ValueError("unexpected broker response")
+        def amount(value):
+            n=float(value)
+            if not math.isfinite(n): raise ValueError("nonfinite broker value")
+            return round(n,2)
+        points=[]
+        for timestamp,pl in zip(history.get("timestamp") or [], history.get("profit_loss") or []):
+            if pl is not None: points.append({"timestamp":int(timestamp),"profit_loss":amount(pl)})
+        holdings=[{"symbol":str(p["symbol"]),"qty":amount(p["qty"]),"market_value":amount(p["market_value"]),
+                   "unrealized_pl":amount(p["unrealized_pl"])} for p in positions]
+        return {"configured":True,"cash":amount(account["cash"]),"buying_power":amount(account["buying_power"]),
+                "equity":amount(account["equity"]),"positions":holdings,"profit_loss_history":points,
+                "note":"Profit/loss history is reported by Alpaca paper, not reconstructed from ledger submissions. Check Alpaca for fill-level accounting and cash-flow details."}
+    except HTTPException: raise
+    except (KeyError,TypeError,ValueError) as exc:
+        raise HTTPException(503,"Alpaca paper portfolio data incomplete; cannot show a reliable chart") from exc
+    except (httpx.HTTPError, OSError) as exc:
+        raise HTTPException(503,"Alpaca paper portfolio unavailable; try again later") from exc
+
 @app.get("/corpus")
 def corpus(): return json.loads(CORPUS.read_text())
 
@@ -257,6 +287,7 @@ def live_evidence_cards(ticker: str, market: dict, stock=None):
                   f"MACD {market['macd']}, signal {market['signal_line']}. "
                   "Delayed and unofficial market data; indicators describe history, not forecasts.",
                   published_at=market['as_of'])]
+    info = {}
     try:
         info = stock.info or {}
         fields = {k: info.get(k) for k in ("shortName", "exchange", "sector", "industry", "marketCap", "trailingPE", "forwardPE", "totalRevenue", "currency") if info.get(k) is not None}
@@ -265,30 +296,49 @@ def live_evidence_cards(ticker: str, market: dict, stock=None):
                               + json.dumps(fields, ensure_ascii=True, default=str) + ". Figures may be delayed or unavailable."))
     except Exception:
         pass  # A failed optional stats endpoint must not erase the price card.
-    try:
-        news = stock.news or []
-        for index, item in enumerate(news[:5]):
-            detail = item.get("content", item)
-            if not isinstance(detail, dict): continue
-            title = str(detail.get("title") or item.get("title") or "").strip()[:260]
-            if not title: continue
-            publisher = detail.get("provider") or detail.get("publisher") or item.get("publisher") or "Yahoo Finance news listing"
-            if isinstance(publisher, dict): publisher = publisher.get("displayName") or publisher.get("name") or "Yahoo Finance news listing"
-            rawtime = detail.get("pubDate") or detail.get("displayTime") or item.get("providerPublishTime")
-            try:
-                when = datetime.fromtimestamp(rawtime, timezone.utc).isoformat() if isinstance(rawtime, (int,float)) else datetime.fromisoformat(str(rawtime).replace("Z", "+00:00")).isoformat()
-            except Exception: continue  # Do not label an undated headline as recent.
-            if not -1 <= (datetime.now(timezone.utc) - datetime.fromisoformat(when)).total_seconds()/86400 <= 14: continue
-            link = detail.get("canonicalUrl") or detail.get("clickThroughUrl") or item.get("link")
-            if isinstance(link, dict): link = link.get("url")
-            cards.append(card(f"news-{index}", f"{ticker} public headline: {title}. Publisher: {str(publisher)[:100]}. "
-                              f"Published: {when}. Link: {str(link or 'unavailable')[:500]}. "
-                              "Headline only, not a verified full article.",
-                              source="Yahoo Finance news listing", published_at=when))
-    except Exception:
-        pass
+    news_key=os.getenv("NEWSAPI_KEY", "").strip()
+    news_source="Yahoo Finance news listing"
+    news=[]
+    if news_key:
+        try:
+            # Developer plan permits local development/testing only, and serves delayed news.
+            query=info.get("shortName", "") if isinstance(info,dict) else ""
+            query=(query or ticker).strip()[:120]
+            with httpx.Client(timeout=12) as client:
+                response=client.get("https://newsapi.org/v2/everything",
+                    params={"q":query,"language":"en","sortBy":"publishedAt","pageSize":5,
+                            "to":(datetime.now(timezone.utc)-timedelta(hours=24)).isoformat()},
+                    headers={"X-Api-Key":news_key})
+                response.raise_for_status()
+                news=response.json().get("articles") or []
+            news_source="NewsAPI developer feed (24h delayed)"
+        except (httpx.HTTPError, ValueError, TypeError):
+            news=[]  # The optional feed must not block the price/stat fallback.
+    if not news:
+        try: news=stock.news or []
+        except Exception: news=[]
+    for index,item in enumerate(news[:5]):
+        detail=item.get("content",item) if isinstance(item,dict) else None
+        if not isinstance(detail,dict): continue
+        title=str(detail.get("title") or item.get("title") or "").strip()[:260]
+        if not title or title=="[Removed]": continue
+        publisher=detail.get("provider") or detail.get("publisher") or item.get("publisher") or item.get("source") or news_source
+        if isinstance(publisher,dict): publisher=publisher.get("displayName") or publisher.get("name") or "Unknown"
+        rawtime=detail.get("publishedAt") or detail.get("pubDate") or detail.get("displayTime") or item.get("providerPublishTime")
+        try:
+            when=datetime.fromtimestamp(rawtime,timezone.utc) if isinstance(rawtime,(int,float)) else datetime.fromisoformat(str(rawtime).replace("Z","+00:00"))
+            if when.tzinfo is None: continue
+            when=when.astimezone(timezone.utc)
+        except (ValueError,TypeError,OverflowError): continue
+        if not -1 <= (datetime.now(timezone.utc)-when).total_seconds()/86400 <= 30: continue
+        link=detail.get("url") or detail.get("canonicalUrl") or detail.get("clickThroughUrl") or item.get("link")
+        if isinstance(link,dict): link=link.get("url")
+        cards.append(card(f"news-{index}", f"{ticker} public headline: {title}. Publisher: {str(publisher)[:100]}. "
+                          f"Published: {when.isoformat()}. Link: {str(link or 'unavailable')[:500]}. "
+                          "Headline only, not a verified full article.", source=news_source,published_at=when.isoformat()))
     coverage = {"ticker": ticker, "news_cards": sum(d['kind'].startswith('news-') for d in cards),
                 "stats_available": any(d['kind']=='stats' for d in cards), "price_card": True,
+                "news_source":news_source if any(d["kind"].startswith("news-") for d in cards) else "none",
                 "quality_note": "Headline coverage unavailable; using price history and available key statistics only." if not any(d['kind'].startswith('news-') for d in cards) else "Headlines are summaries, not full articles; verify important claims at source."}
     return cards, coverage
 
@@ -333,6 +383,7 @@ def prepare(p:AnalysisInput):
     # Evaluation uses only frozen dated source cards to avoid changing answers and future leakage.
     ticker=p.ticker.upper()
     if not check_symbol_format(ticker): raise unsupported_ticker(ticker)
+    if not p.question.strip() or len(p.question.strip())<5: raise HTTPException(422,"Enter a research question of at least five non-space characters")
     if p.evaluation and ticker not in SEEDED_CORPUS_TICKERS:
         raise HTTPException(400,"Frozen evaluation is limited to AAPL and MSFT")
     market=None if p.evaluation else price_data(ticker)
@@ -353,9 +404,14 @@ def prepare(p:AnalysisInput):
 
 @app.post("/research")
 def research(p:AnalysisInput):
+    if not p.question.strip() or len(p.question.strip())<5: raise HTTPException(422,"Enter a research question of at least five non-space characters")
+    if not check_symbol_format(p.ticker.upper()): raise unsupported_ticker(p.ticker)
     try:
         with httpx.Client(timeout=300) as client:
             r=client.post(N8N+"/webhook/agenttrade-analyze",json=p.model_dump())
             r.raise_for_status()
             return r.json()
-    except Exception as exc: raise HTTPException(503,f"Local research workflow unavailable at {N8N}: {str(exc)[:140]}")
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(503,"Research workflow rejected the request. Check the n8n execution log and imported workflow settings.") from exc
+    except (httpx.RequestError, ValueError) as exc:
+        raise HTTPException(503,"Local research workflow unavailable. Check that n8n is running and the workflow is published.") from exc
