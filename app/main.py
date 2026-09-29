@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="AGENTTRADE deterministic service", version="1.0")
+app = FastAPI(title="AGENTTRADE deterministic service", version="1.1")
 DB = os.getenv("DATABASE_PATH", "/tmp/agenttrade.sqlite3")
 OLLAMA = os.getenv("OLLAMA_URL", "http://localhost:11434")
 QDRANT = os.getenv("QDRANT_URL", "http://localhost:6333")
@@ -17,8 +17,21 @@ QDRANT = os.getenv("QDRANT_URL", "http://localhost:6333")
 N8N = os.getenv("N8N_URL", "http://host.docker.internal:5678")
 COLLECTION = "agenttrade_evidence"
 _APPROVAL_LOCK = threading.Lock()
-ALLOWED = {"AAPL", "MSFT"}
+# No fixed ticker whitelist. Symbols are checked by format here and confirmed against
+# live Yahoo Finance data in price_data, so any US-listed symbol can be researched
+# and paper-traded (Alpaca paper accounts support US-listed securities only).
+SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
+# The frozen synthetic evidence corpus is seeded for these two tickers only.
+SEEDED_CORPUS_TICKERS = {"AAPL", "MSFT"}
 CORPUS = Path(__file__).resolve().parent.parent / "data" / "corpus.json"
+
+
+def check_symbol_format(ticker: str) -> bool:
+    return bool(SYMBOL_RE.fullmatch(ticker))
+
+
+def unsupported_ticker(ticker: str) -> HTTPException:
+    return HTTPException(400, f"Unsupported ticker '{ticker}'. Provide a valid US-listed symbol, for example AAPL, TSLA or NVDA.")
 
 
 def conn():
@@ -46,11 +59,14 @@ class Approval(BaseModel):
 
 
 def price_data(ticker: str):
-    if ticker not in ALLOWED:
-        raise HTTPException(400, f"Supported tickers: {sorted(ALLOWED)}")
+    if not check_symbol_format(ticker):
+        raise unsupported_ticker(ticker)
     try:
         df = yf.download(ticker, period="6mo", interval="1d", progress=False, auto_adjust=True, threads=False, timeout=15)
-        if df.empty or len(df) < 30:
+        if df.empty:
+            # Yahoo Finance returns no rows for unknown or delisted symbols.
+            raise unsupported_ticker(ticker)
+        if len(df) < 30:
             raise ValueError("at least 30 recent daily closes are required")
         close = df["Close"]
         if hasattr(close, "columns"): close = close.iloc[:, 0]
@@ -73,14 +89,14 @@ def dashboard():
     return html.replace("__APPROVAL_CODE__", os.getenv("APPROVAL_CODE",""))
 
 @app.get("/health")
-def health(): return {"status":"ok","allowed_tickers":sorted(ALLOWED)}
+def health(): return {"status":"ok","symbol_universe":"any valid US-listed symbol, validated live via Yahoo Finance","seeded_corpus_tickers":sorted(SEEDED_CORPUS_TICKERS)}
 
 @app.get("/snapshot/{ticker}")
 def snapshot(ticker: str): return price_data(ticker.upper())
 
 
 def risk(ticker, side, qty, price, db=None):
-    if ticker not in ALLOWED: return ["unsupported ticker"]
+    if not check_symbol_format(ticker): return ["unsupported ticker"]
     if side not in ("BUY", "SELL", "HOLD"): return ["invalid side"]
     if side == "HOLD": return ["HOLD is not an order"]
     errors=[]
@@ -209,14 +225,15 @@ class AnalysisInput(BaseModel):
 def prepare(p:AnalysisInput):
     # Evaluation uses only frozen dated source cards to avoid changing answers and future leakage.
     ticker=p.ticker.upper()
-    if ticker not in ALLOWED: raise HTTPException(400,"unsupported ticker")
+    if not check_symbol_format(ticker): raise unsupported_ticker(ticker)
     market=None if p.evaluation else price_data(ticker)
     evidence=[] if p.mode != 'fixed' else fixed_rag(p.question)['evidence']
-    return {**p.model_dump(),"snapshot":market,"fixed_evidence":evidence,
+    seeded=ticker in SEEDED_CORPUS_TICKERS
+    return {**p.model_dump(),"snapshot":market,"fixed_evidence":evidence,"ticker_seeded_in_corpus":seeded,
             "retrieval_instruction":("DO NOT use the Qdrant tool. No external evidence is available." if p.mode=='none' else
             "DO NOT use the Qdrant tool; only use fixed_evidence supplied here." if p.mode=='fixed' else
             "You MUST choose and call the Qdrant retrieval tool with a query you formulate; inspect the returned source metadata and cite doc IDs. You may reformulate and call again if evidence is insufficient."),
-            "warning":"Synthetic corpus provides policy facts only; do not treat these as current financial fundamentals or news."}
+            "warning":"Synthetic corpus provides policy facts only; do not treat these as current financial fundamentals or news." + ("" if seeded else f" No seeded evidence cards exist for {ticker}; retrieval returns no ticker-specific cards, so base the answer on the live market snapshot and general policy cards and say so explicitly.")}
 
 @app.post("/research")
 def research(p:AnalysisInput):
