@@ -49,7 +49,7 @@
       ],
       "parameters": {
         "promptType": "define",
-        "text": "={{ \"Question: \" + $json.question + \"\\nTicker: \" + $json.ticker + \"\\nMode: \" + $json.mode + \"\\n\" + $json.retrieval_instruction + \"\\nFixed evidence: \" + JSON.stringify($json.fixed_evidence) + \"\\nMarket snapshot: \" + JSON.stringify($json.snapshot) }}",
+        "text": "={{ \"Question: \" + $json.question + \"\\nTicker: \" + $json.ticker + \"\\nMode: \" + $json.mode + \"\\n\" + $json.retrieval_instruction + \"\\nFixed evidence: \" + JSON.stringify($json.fixed_evidence) + \"\\nMarket snapshot: \" + JSON.stringify($json.snapshot)  + \"\\nEvidence warning: \" + $json.warning + \"\\nCoverage: \" + JSON.stringify($json.evidence_coverage) }}",
         "options": {
           "systemMessage": "You are the evidence retrieval agent. Follow the mode-specific retrieval instruction exactly. In agentic mode choose Qdrant tool queries yourself. Never invent a source. Return concise evidence with [doc N] citations, publication dates, source, and any insufficiency. In fixed and none mode do not call tools. This is paper-only educational analysis.",
           "maxIterations": 4
@@ -67,7 +67,7 @@
       ],
       "parameters": {
         "promptType": "define",
-        "text": "={{ \"Question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nTicker: \" + $(\"Validate and prepare evidence\").item.json.ticker + \"\\nMode: \" + $(\"Validate and prepare evidence\").item.json.mode + \"\\nSnapshot: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.snapshot) + \"\\nRetrieval output: \" + $json.output }}",
+        "text": "={{ \"Question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nTicker: \" + $(\"Validate and prepare evidence\").item.json.ticker + \"\\nMode: \" + $(\"Validate and prepare evidence\").item.json.mode + \"\\nSnapshot: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.snapshot) + \"\\nRetrieval output: \" + $json.output  + \"\\nEvidence warning: \" + $(\"Validate and prepare evidence\").item.json.warning + \"\\nCoverage: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.evidence_coverage) }}",
         "options": {
           "systemMessage": "You are a cautious stock research analyst. Interpret supplied evidence and deterministic market indicators; never invent news, filings, numbers or citations. Cite [doc N] only for source evidence actually present. State as-of dates and uncertainty. This is educational paper-only, not financial advice. Output a decision BUY, SELL or HOLD with reasoning; default HOLD when insufficient."
         }
@@ -84,7 +84,7 @@
       ],
       "parameters": {
         "promptType": "define",
-        "text": "={{ \"Question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nRetrieved evidence: \" + $(\"Normalize retrieval\").item.json.output + \"\\nAnalyst proposal: \" + $json.output }}",
+        "text": "={{ \"Question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nRetrieved evidence: \" + $(\"Normalize retrieval\").item.json.output + \"\\nAnalyst proposal: \" + $json.output  + \"\\nEvidence warning: \" + $(\"Validate and prepare evidence\").item.json.warning + \"\\nCoverage: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.evidence_coverage) }}",
         "options": {
           "systemMessage": "You are the independent critic. Check citations actually support claims, timestamps, stale market data, weak or conflicting evidence, unsupported confidence and risky paper-order intent. List concrete errors or say PASS. Never modify the ledger."
         }
@@ -101,7 +101,7 @@
       ],
       "parameters": {
         "promptType": "define",
-        "text": "={{ \"Original question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nMarket snapshot: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.snapshot) + \"\\nEvidence: \" + $(\"Normalize retrieval\").item.json.output + \"\\nInitial analysis: \" + $(\"2 Analyst agent\").item.json.output + \"\\nCritique: \" + $json.output }}",
+        "text": "={{ \"Original question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nMarket snapshot: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.snapshot) + \"\\nEvidence: \" + $(\"Normalize retrieval\").item.json.output + \"\\nInitial analysis: \" + $(\"2 Analyst agent\").item.json.output + \"\\nCritique: \" + $json.output  + \"\\nEvidence warning: \" + $(\"Validate and prepare evidence\").item.json.warning + \"\\nCoverage: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.evidence_coverage) }}",
         "options": {
           "systemMessage": "Produce the final corrected answer in exactly one pass. Keep supported evidence and [doc N] citations; remove any unsupported claim and disclose stale or absent data. Never claim a paper order was placed. State educational-only. If critique says PASS, retain the valid initial judgment. No tool, no further iteration."
         }
@@ -147,6 +147,18 @@
               "id": "retrieval",
               "name": "retrieval",
               "value": "={{ $(\"Normalize retrieval\").item.json.output }}",
+              "type": "string"
+            },
+            {
+              "id": "coverage",
+              "name": "evidence_coverage",
+              "value": "={{ $(\"Validate and prepare evidence\").item.json.evidence_coverage }}",
+              "type": "object"
+            },
+            {
+              "id": "warning",
+              "name": "warning",
+              "value": "={{ $(\"Validate and prepare evidence\").item.json.warning }}",
               "type": "string"
             }
           ]
@@ -246,7 +258,7 @@
       "parameters": {
         "mode": "retrieve-as-tool",
         "toolName": "retrieve_case_evidence",
-        "toolDescription": "Retrieve frozen dated classroom evidence about AAPL, MSFT, methodology and paper-trading policy. Input is a search query selected by the retrieval agent. Cite doc IDs and dates.",
+        "toolDescription": "Retrieve dated educational policy cards and live, ticker-tagged Yahoo Finance price/stat/headline cards. Search for the requested ticker and cite dated doc IDs. Historical synthetic card 3 has an obsolete AAPL/MSFT-only limit; do not use it as current policy.",
         "qdrantCollection": {
           "__rl": true,
           "mode": "id",
