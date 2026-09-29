@@ -72,10 +72,21 @@ class ResearchClient:
     def __exit__(self, *args): pass
     def post(self, url, **kwargs):
         assert url.endswith('/webhook/agenttrade-analyze')
+        ResearchClient.last_payload = kwargs.get('json')
         return ResearchResponse(self.payload)
 original_research_client=main.httpx.Client
 main.httpx.Client=ResearchClient
 ResearchClient.payload={"answer":"Simple summary:\nThe evidence is too thin to say whether this stock is a good buy. Wait for more information.\n\nTechnical details:\nDecision: HOLD\nSource evidence is insufficient [doc 1].", "simple_summary":"The evidence is too thin to say whether this stock is a good buy. Wait for more information.", "mode":"agentic"}
+r=client.post('/research',json={"question":"Should I buy AAPL shares?","ticker":"AAPL"})
+check('explicit ticker remains in evaluator request', ResearchClient.last_payload['ticker']=='AAPL')
+r=client.post('/research',json={"question":"Is TSLA a good buy now?"})
+check('uppercase symbol resolved from question',r.status_code==200 and r.json().get('ticker')=='TSLA' and ResearchClient.last_payload['ticker']=='TSLA')
+r=client.post('/research',json={"question":"What is your suggestion on Apple?"})
+check('company alias resolved from question',r.status_code==200 and r.json().get('ticker')=='AAPL' and r.json().get('company_name')=='Apple')
+r=client.post('/research',json={"question":"What is your suggestion whether this is a good idea?"})
+check('missing stock gets clarification, not default AAPL',r.status_code==422 and 'Which stock' in r.json()['detail'])
+r=client.post('/research',json={"question":"AAPL or TSLA, which should I buy?"})
+check('multiple stocks get clarification',r.status_code==422 and 'AAPL, TSLA' in r.json()['detail'])
 r=client.post('/research',json={"question":"Should I buy AAPL shares?","ticker":"AAPL"})
 check('research separates simple summary and technical details',r.status_code==200 and r.json().get('simple_summary','').startswith('The evidence') and r.json().get('technical_detail','').startswith('Decision: HOLD') and r.json().get('answer','').startswith('Simple summary:'))
 ResearchClient.payload={"answer":"Decision: BUY. RSI14 67, MACD 1.2."}
@@ -85,6 +96,13 @@ ResearchClient.payload={"answer":"Simple summary:\nWait for more information.\n\
 r=client.post('/research',json={"question":"Should I buy AAPL shares?","ticker":"AAPL"})
 check('mismatched summary and detail rejected',r.status_code==502 and 'differs' in r.json()['detail'])
 main.httpx.Client=original_research_client
+r=client.post('/detect-stock',json={"question":"Is Tesla a good buy?"})
+check('preflight detects and validates a company',r.status_code==200 and r.json().get('ticker')=='TSLA')
+r=client.post('/detect-stock',json={"question":"I want to buy a stock", "ticker":"NVDA"})
+check('fallback symbol validates separately',r.status_code==200 and r.json().get('ticker')=='NVDA')
+r=client.post('/detect-stock',json={"question":"What should I buy?"})
+check('preflight asks when company not detected',r.status_code==422 and 'Which stock' in r.json()['detail'])
+check('single research question field, with detected ticker display', 'id="ticker"' not in client.get('/').text and 'id="question"' in client.get('/').text and 'Analyzing: ' in client.get('/').text and 'Yes, run analysis' in client.get('/').text)
 check('dashboard highlights summary before details', 'className=\'simple-summary\'' in client.get('/').text and 'data.technical_detail' in client.get('/').text)
 import json
 workflow=json.loads((ROOT/'workflows/research.json').read_text())
