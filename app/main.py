@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="AGENTTRADE deterministic service", version="1.1")
+app = FastAPI(title="AGENTTRADE deterministic service", version="1.3")
 DB = os.getenv("DATABASE_PATH", "/tmp/agenttrade.sqlite3")
 OLLAMA = os.getenv("OLLAMA_URL", "http://localhost:11434")
 QDRANT = os.getenv("QDRANT_URL", "http://localhost:6333")
@@ -78,7 +78,7 @@ def price_data(ticker: str):
         deltas = close.diff().dropna(); gains = deltas.clip(lower=0).ewm(alpha=1/14, adjust=False).mean(); losses = (-deltas.clip(upper=0)).ewm(alpha=1/14, adjust=False).mean()
         loss = float(losses.iloc[-1]); gain = float(gains.iloc[-1]); rsi = 100.0 if loss == 0 and gain > 0 else (50.0 if loss == 0 else 100-100/(1+gain/loss))
         ema12 = close.ewm(span=12, adjust=False).mean(); ema26 = close.ewm(span=26, adjust=False).mean(); macd = ema12-ema26
-        return {"ticker":ticker,"as_of":last_date,"retrieved_at":datetime.now(timezone.utc).isoformat(),"currency":"USD", "price":round(prices[-1],2),"sma20":round(sum(prices[-20:])/20,2),"sma50":round(sum(prices[-50:])/50,2) if len(prices)>=50 else None,"rsi14":round(rsi,2),"macd":round(float(macd.iloc[-1]),3),"signal_line":round(float(macd.ewm(span=9,adjust=False).mean().iloc[-1]),3),"data_source":"Yahoo Finance via yfinance; delayed/unofficial, educational use only"}
+        return {"ticker":ticker,"as_of":last_date,"retrieved_at":datetime.now(timezone.utc).isoformat(),"currency":"USD", "price":round(prices[-1],2),"recent_closes": [round(v,2) for v in prices[-5:]],"sma20":round(sum(prices[-20:])/20,2),"sma50":round(sum(prices[-50:])/50,2) if len(prices)>=50 else None,"rsi14":round(rsi,2),"macd":round(float(macd.iloc[-1]),3),"signal_line":round(float(macd.ewm(span=9,adjust=False).mean().iloc[-1]),3),"data_source":"Yahoo Finance via yfinance; delayed/unofficial, educational use only"}
     except HTTPException: raise
     except Exception as exc: raise HTTPException(503, f"Fresh market data unavailable; trading blocked: {exc}") from exc
 
@@ -207,11 +207,83 @@ def ingest():
         r=client.put(QDRANT+f"/collections/{COLLECTION}/points?wait=true",json={"points":vectors});r.raise_for_status()
     return {"ingested":len(vectors),"collection":COLLECTION}
 
+def live_evidence_cards(ticker: str, market: dict, stock=None):
+    """Build bounded, dated public-data cards. News is optional; price/stat cards are not."""
+    stock = stock or yf.Ticker(ticker)
+    stamp = datetime.now(timezone.utc).isoformat()
+    def card(kind, text, source="Yahoo Finance via yfinance", published_at=None):
+        # Stable IDs overwrite only this ticker's previous live cards; 1-7 remain frozen.
+        uid = int(hashlib.sha256(f"agenttrade-live-v1:{ticker}:{kind}".encode()).hexdigest()[:13], 16) + 1000000
+        return {"id": uid, "ticker": ticker, "kind": kind, "source": source,
+                "published_at": published_at or stamp, "text": text[:1600], "evidence_type": "live"}
+    cards = [card("price", f"{ticker} adjusted daily close on {market['as_of']}: USD {market['price']}. "
+                  f"Recent adjusted closes (oldest to newest): {market.get('recent_closes', [market['price']])}. "
+                  f"20-day SMA {market['sma20']}; 50-day SMA {market['sma50']}; RSI14 {market['rsi14']}; "
+                  f"MACD {market['macd']}, signal {market['signal_line']}. "
+                  "Delayed and unofficial market data; indicators describe history, not forecasts.",
+                  published_at=market['as_of'])]
+    try:
+        info = stock.info or {}
+        fields = {k: info.get(k) for k in ("shortName", "exchange", "sector", "industry", "marketCap", "trailingPE", "forwardPE", "totalRevenue", "currency") if info.get(k) is not None}
+        if fields:
+            cards.append(card("stats", f"{ticker} reported Yahoo Finance key statistics retrieved {stamp}: "
+                              + json.dumps(fields, ensure_ascii=True, default=str) + ". Figures may be delayed or unavailable."))
+    except Exception:
+        pass  # A failed optional stats endpoint must not erase the price card.
+    try:
+        news = stock.news or []
+        for index, item in enumerate(news[:5]):
+            detail = item.get("content", item)
+            if not isinstance(detail, dict): continue
+            title = str(detail.get("title") or item.get("title") or "").strip()[:260]
+            if not title: continue
+            publisher = detail.get("provider") or detail.get("publisher") or item.get("publisher") or "Yahoo Finance news listing"
+            if isinstance(publisher, dict): publisher = publisher.get("displayName") or publisher.get("name") or "Yahoo Finance news listing"
+            rawtime = detail.get("pubDate") or detail.get("displayTime") or item.get("providerPublishTime")
+            try:
+                when = datetime.fromtimestamp(rawtime, timezone.utc).isoformat() if isinstance(rawtime, (int,float)) else datetime.fromisoformat(str(rawtime).replace("Z", "+00:00")).isoformat()
+            except Exception: continue  # Do not label an undated headline as recent.
+            if not -1 <= (datetime.now(timezone.utc) - datetime.fromisoformat(when)).total_seconds()/86400 <= 14: continue
+            link = detail.get("canonicalUrl") or detail.get("clickThroughUrl") or item.get("link")
+            if isinstance(link, dict): link = link.get("url")
+            cards.append(card(f"news-{index}", f"{ticker} public headline: {title}. Publisher: {str(publisher)[:100]}. "
+                              f"Published: {when}. Link: {str(link or 'unavailable')[:500]}. "
+                              "Headline only, not a verified full article.",
+                              source="Yahoo Finance news listing", published_at=when))
+    except Exception:
+        pass
+    coverage = {"ticker": ticker, "news_cards": sum(d['kind'].startswith('news-') for d in cards),
+                "stats_available": any(d['kind']=='stats' for d in cards), "price_card": True,
+                "quality_note": "Headline coverage unavailable; using price history and available key statistics only." if not any(d['kind'].startswith('news-') for d in cards) else "Headlines are summaries, not full articles; verify important claims at source."}
+    return cards, coverage
+
+
+def upsert_live_evidence(cards):
+    """Append/update live cards in the seeded collection; never recreate or delete it."""
+    with httpx.Client(timeout=60) as client:
+        vectors=[]
+        for d in cards:
+            r=client.post(OLLAMA+"/api/embeddings",json={"model":"nomic-embed-text","prompt":d['text']}); r.raise_for_status()
+            vectors.append({"id":d['id'],"vector":r.json()['embedding'],
+                            "payload":{"content":d['text'],"metadata":{k:d[k] for k in ('source','published_at','id','ticker','kind','evidence_type')} | {"doc_id":str(d['id'])}}})
+        # /ingest must have been run first so the fixed educational cards survive.
+        r=client.get(QDRANT+f"/collections/{COLLECTION}")
+        if r.status_code != 200: raise HTTPException(503,"Evidence collection unavailable; run POST /ingest before live research")
+        # Clear only reserved IDs for this ticker so old news does not survive a no-news run.
+        reserved = [int(hashlib.sha256(f"agenttrade-live-v1:{cards[0]['ticker']}:{kind}".encode()).hexdigest()[:13],16)+1000000
+                    for kind in ("price", "stats", *(f"news-{i}" for i in range(5)))]
+        r=client.post(QDRANT+f"/collections/{COLLECTION}/points/delete?wait=true",json={"points":reserved}); r.raise_for_status()
+        r=client.put(QDRANT+f"/collections/{COLLECTION}/points?wait=true",json={"points":vectors}); r.raise_for_status()
+    return len(vectors)
+
+
 @app.get("/fixed-rag")
-def fixed_rag(question:str):
+def fixed_rag(question:str, ticker:str = None):
     with httpx.Client(timeout=45) as client:
         r=client.post(OLLAMA+"/api/embeddings",json={"model":"nomic-embed-text","prompt":question});r.raise_for_status()
-        s=client.post(QDRANT+f"/collections/{COLLECTION}/points/search",json={"vector":r.json()["embedding"],"limit":3,"with_payload":True});s.raise_for_status()
+        body={"vector":r.json()["embedding"],"limit":3,"with_payload":True}
+        if ticker: body["filter"]={"must":[{"key":"metadata.ticker","match":{"value":ticker}}]}
+        s=client.post(QDRANT+f"/collections/{COLLECTION}/points/search",json=body);s.raise_for_status()
     return {"evidence":[{"text":x["payload"]["content"],**x["payload"]["metadata"]} for x in s.json()["result"]]}
 
 class AnalysisInput(BaseModel):
@@ -226,14 +298,23 @@ def prepare(p:AnalysisInput):
     # Evaluation uses only frozen dated source cards to avoid changing answers and future leakage.
     ticker=p.ticker.upper()
     if not check_symbol_format(ticker): raise unsupported_ticker(ticker)
+    if p.evaluation and ticker not in SEEDED_CORPUS_TICKERS:
+        raise HTTPException(400,"Frozen evaluation is limited to AAPL and MSFT")
     market=None if p.evaluation else price_data(ticker)
-    evidence=[] if p.mode != 'fixed' else fixed_rag(p.question)['evidence']
+    coverage=None
+    if not p.evaluation and p.mode != 'none':
+        cards, coverage=live_evidence_cards(ticker, market)
+        try: coverage['cards_ingested']=upsert_live_evidence(cards)
+        except HTTPException: raise
+        except Exception as exc: raise HTTPException(503,f"Live evidence ingestion unavailable: {str(exc)[:120]}") from exc
+    evidence=[] if p.mode != 'fixed' else fixed_rag(p.question, None if p.evaluation else ticker)['evidence']
     seeded=ticker in SEEDED_CORPUS_TICKERS
-    return {**p.model_dump(),"snapshot":market,"fixed_evidence":evidence,"ticker_seeded_in_corpus":seeded,
+    return {**p.model_dump(),"snapshot":market,"fixed_evidence":evidence,"ticker_seeded_in_corpus":seeded,"evidence_coverage":coverage,
             "retrieval_instruction":("DO NOT use the Qdrant tool. No external evidence is available." if p.mode=='none' else
             "DO NOT use the Qdrant tool; only use fixed_evidence supplied here." if p.mode=='fixed' else
             "You MUST choose and call the Qdrant retrieval tool with a query you formulate; inspect the returned source metadata and cite doc IDs. You may reformulate and call again if evidence is insufficient."),
-            "warning":"Synthetic corpus provides policy facts only; do not treat these as current financial fundamentals or news." + ("" if seeded else f" No seeded evidence cards exist for {ticker}; retrieval returns no ticker-specific cards, so base the answer on the live market snapshot and general policy cards and say so explicitly.")}
+            "warning":("Frozen benchmark: educational synthetic cards only; historical policy card 3 is not current trading policy." if p.evaluation else
+            "Live cards include delayed public data; news is headline-only. Synthetic policy cards are historical classroom examples and card 3's AAPL/MSFT restriction is obsolete. Cite live sources for current facts. " + (coverage['quality_note'] if coverage else "No retrieval in this mode."))}
 
 @app.post("/research")
 def research(p:AnalysisInput):
