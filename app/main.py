@@ -13,6 +13,8 @@ app = FastAPI(title="AGENTTRADE deterministic service", version="1.0")
 DB = os.getenv("DATABASE_PATH", "/tmp/agenttrade.sqlite3")
 OLLAMA = os.getenv("OLLAMA_URL", "http://localhost:11434")
 QDRANT = os.getenv("QDRANT_URL", "http://localhost:6333")
+# n8n runs natively on the host; the container reaches it via host.docker.internal.
+N8N = os.getenv("N8N_URL", "http://host.docker.internal:5678")
 COLLECTION = "agenttrade_evidence"
 _APPROVAL_LOCK = threading.Lock()
 ALLOWED = {"AAPL", "MSFT"}
@@ -65,7 +67,10 @@ def price_data(ticker: str):
     except Exception as exc: raise HTTPException(503, f"Fresh market data unavailable; trading blocked: {exc}") from exc
 
 @app.get("/",response_class=HTMLResponse)
-def dashboard(): return (Path(__file__).parent/"dashboard.html").read_text()
+def dashboard():
+    # The approval code is injected so the local dashboard can pre-fill it; the page is bound to localhost only.
+    html=(Path(__file__).parent/"dashboard.html").read_text()
+    return html.replace("__APPROVAL_CODE__", os.getenv("APPROVAL_CODE",""))
 
 @app.get("/health")
 def health(): return {"status":"ok","allowed_tickers":sorted(ALLOWED)}
@@ -217,7 +222,7 @@ def prepare(p:AnalysisInput):
 def research(p:AnalysisInput):
     try:
         with httpx.Client(timeout=300) as client:
-            r=client.post("http://n8n:5678/webhook/agenttrade-analyze",json=p.model_dump())
+            r=client.post(N8N+"/webhook/agenttrade-analyze",json=p.model_dump())
             r.raise_for_status()
             return r.json()
-    except Exception as exc: raise HTTPException(503,f"Local research workflow unavailable: {str(exc)[:140]}")
+    except Exception as exc: raise HTTPException(503,f"Local research workflow unavailable at {N8N}: {str(exc)[:140]}")
