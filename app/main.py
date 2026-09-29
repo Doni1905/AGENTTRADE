@@ -226,18 +226,23 @@ def _approve_locked(a:Approval):
 def ledger():
     with conn() as c: return {"trades":[dict(x) for x in c.execute("SELECT * FROM trades ORDER BY id DESC LIMIT 100")],"proposals":[dict(x) for x in c.execute("SELECT * FROM proposals ORDER BY created DESC LIMIT 100")]}
 
-@app.get("/portfolio")
+@app.get("/portfolio",response_class=HTMLResponse)
+def portfolio_page():
+    return (Path(__file__).parent/"portfolio.html").read_text()
+
+@app.get("/api/portfolio")
 def portfolio():
     """Broker-owned positions and equity history, never inferred from unfilled ledger orders."""
     if not (os.getenv("ALPACA_PAPER_KEY_ID") or os.getenv("ALPACA_PAPER_SECRET_KEY")):
-        return {"configured":False,"message":"Add Alpaca paper keys to show positions and equity history.","positions":[],"profit_loss_history":[]}
+        return {"configured":False,"message":"Add Alpaca paper keys to show positions and equity history.","positions":[],"profit_loss_history":[],"orders":[]}
     headers=alpaca_headers()
     try:
         with httpx.Client(timeout=25) as client:
             account=alpaca_get(client,"/v2/account",headers)
             positions=alpaca_get(client,"/v2/positions",headers)
             history=alpaca_get(client,"/v2/account/portfolio/history?period=1M&timeframe=1D",headers)
-        if not isinstance(account,dict) or not isinstance(positions,list) or not isinstance(history,dict): raise ValueError("unexpected broker response")
+            orders=alpaca_get(client,"/v2/orders?status=all&limit=20&direction=desc",headers)
+        if not isinstance(account,dict) or not isinstance(positions,list) or not isinstance(history,dict) or not isinstance(orders,list): raise ValueError("unexpected broker response")
         def amount(value):
             n=float(value)
             if not math.isfinite(n): raise ValueError("nonfinite broker value")
@@ -247,8 +252,13 @@ def portfolio():
             if pl is not None: points.append({"timestamp":int(timestamp),"profit_loss":amount(pl)})
         holdings=[{"symbol":str(p["symbol"]),"qty":amount(p["qty"]),"market_value":amount(p["market_value"]),
                    "unrealized_pl":amount(p["unrealized_pl"])} for p in positions]
+        recent=[{"symbol":str(o["symbol"]),"side":str(o["side"]),"qty":amount(o["qty"]),
+                 "filled_qty":amount(o.get("filled_qty") or 0),"status":str(o["status"]),
+                 "submitted_at":o.get("submitted_at"),"filled_at":o.get("filled_at"),
+                 "filled_avg_price":amount(o["filled_avg_price"]) if o.get("filled_avg_price") is not None else None}
+                for o in orders]
         return {"configured":True,"cash":amount(account["cash"]),"buying_power":amount(account["buying_power"]),
-                "equity":amount(account["equity"]),"positions":holdings,"profit_loss_history":points,
+                "equity":amount(account["equity"]),"positions":holdings,"profit_loss_history":points,"orders":recent,
                 "note":"Profit/loss history is reported by Alpaca paper, not reconstructed from ledger submissions. Check Alpaca for fill-level accounting and cash-flow details."}
     except HTTPException: raise
     except (KeyError,TypeError,ValueError) as exc:
