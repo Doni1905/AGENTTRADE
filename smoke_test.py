@@ -89,6 +89,13 @@ r=client.post('/research',json={"question":"AAPL or TSLA, which should I buy?"})
 check('multiple stocks get clarification',r.status_code==422 and 'AAPL, TSLA' in r.json()['detail'])
 r=client.post('/research',json={"question":"Should I buy AAPL shares?","ticker":"AAPL"})
 check('research separates simple summary and technical details',r.status_code==200 and r.json().get('simple_summary','').startswith('The evidence') and r.json().get('technical_detail','').startswith('Decision: HOLD') and r.json().get('answer','').startswith('Simple summary:'))
+# Both API entry points resolve tier defaults before reaching n8n.
+check('research defaults resolve two tiers', ResearchClient.last_payload['fast_model']=='qwen2.5:3b' and ResearchClient.last_payload['smart_model']=='qwen2.5:7b' and ResearchClient.last_payload['model'] is None)
+for model in ('qwen2.5:3b','llama3.2:3b','qwen2.5:7b'):
+    r=client.post('/research',json={"question":"Should I buy AAPL shares?","ticker":"AAPL","model":model})
+    check('legacy research single model '+model,r.status_code==200 and ResearchClient.last_payload['fast_model']==model and ResearchClient.last_payload['smart_model']==model)
+r=client.post('/research',json={"question":"Should I buy AAPL shares?","ticker":"AAPL","fast_model":"llama3.2:3b","smart_model":"qwen2.5:7b"})
+check('research forwards explicit tiers',r.status_code==200 and ResearchClient.last_payload['fast_model']=='llama3.2:3b' and ResearchClient.last_payload['smart_model']=='qwen2.5:7b')
 ResearchClient.payload={"answer":"Decision: BUY. RSI14 67, MACD 1.2."}
 r=client.post('/research',json={"question":"Should I buy AAPL shares?","ticker":"AAPL"})
 check('jargon-only legacy research rejected',r.status_code==502 and 'simple summary' in r.json()['detail'])
@@ -120,6 +127,35 @@ check("evaluation rejects unseeded ticker", r.status_code == 400 and "Frozen eva
 
 r = client.post("/prepare", json={"question": "What is the max paper order notional?", "ticker": "AAPL", "evaluation": True})
 check("prepare flags seeded ticker", r.status_code == 200 and r.json()["ticker_seeded_in_corpus"] is True)
+
+check('prepare defaults resolve two tiers',r.json()['fast_model']=='qwen2.5:3b' and r.json()['smart_model']=='qwen2.5:7b' and r.json()['model'] is None)
+for model in ('qwen2.5:3b','llama3.2:3b','qwen2.5:7b'):
+    r=client.post('/prepare',json={"question":"What is the max paper order notional?","ticker":"AAPL","evaluation":True,"model":model})
+    check('legacy prepare single model '+model,r.status_code==200 and r.json()['fast_model']==model and r.json()['smart_model']==model)
+for fields,fast,smart in [
+    ({"fast_model":"llama3.2:3b"},"llama3.2:3b","qwen2.5:7b"),
+    ({"smart_model":"llama3.2:3b"},"qwen2.5:3b","llama3.2:3b"),
+    ({"model":"llama3.2:3b","smart_model":"qwen2.5:7b"},"llama3.2:3b","qwen2.5:7b"),
+    ({"model":"qwen2.5:7b","fast_model":"qwen2.5:3b"},"qwen2.5:3b","qwen2.5:7b"),
+    ({"model":None,"fast_model":None,"smart_model":None},"qwen2.5:3b","qwen2.5:7b"),
+]:
+    r=client.post('/prepare',json={"question":"What is the max paper order notional?","ticker":"AAPL","evaluation":True,**fields})
+    check('tier overrides/defaults '+str(fields),r.status_code==200 and r.json()['fast_model']==fast and r.json()['smart_model']==smart)
+# /research forwards resolved fields back through /prepare in the n8n workflow.
+for model in (None,'qwen2.5:3b','llama3.2:3b','qwen2.5:7b'):
+    p=main.AnalysisInput(question='What is the max paper order notional?',ticker='AAPL',evaluation=True,model=model)
+    r=client.post('/prepare',json=main.research_model_payload(p))
+    check('resolved payload survives prepare '+str(model),r.status_code==200 and r.json()['smart_model']==(model or 'qwen2.5:7b'))
+for endpoint in ('/prepare','/research'):
+    for field in ('model','fast_model','smart_model'):
+        r=client.post(endpoint,json={"question":"What is the max paper order notional?","ticker":"AAPL","evaluation":True,field:"invalid-model"})
+        check(endpoint+' validates '+field,r.status_code==422)
+roles={'Ollama model 1':('1 Retrieval agent','fast_model'),'Ollama model 2':('2 Analyst agent','smart_model'),'Ollama model 3':('5 Critic judge','smart_model'),'Ollama model 4':('Bounded correction (one pass)','fast_model'),'Ollama model bull':('3 Bull case','fast_model'),'Ollama model bear':('4 Bear case','fast_model')}
+for name,(role,tier) in roles.items():
+    check('workflow routes '+role,node[name]['parameters']['model']=='={{ $("Validate and prepare evidence").item.json.'+tier+' }}' and workflow['connections'][name]['ai_languageModel'][0][0]['node']==role)
+check('embedding model unchanged',node['Ollama embeddings']['parameters']['model']=='nomic-embed-text')
+check('answer audits both tiers',all(any(a['name']==tier and tier in a['value'] for a in node['Return auditable answer']['parameters']['assignments']['assignments']) for tier in ('fast_model','smart_model')))
+check('dashboard uses split defaults rather than legacy model',"model:'qwen2.5:3b'" not in client.get('/').text)
 
 # Stub public ticker detail and Qdrant upsert; no network, seeds unchanged.
 class FakeTicker:
