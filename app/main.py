@@ -432,9 +432,18 @@ def detect_stock(p: DetectionInput):
 class AnalysisInput(BaseModel):
     question: str = Field(min_length=5,max_length=1000)
     ticker: str | None = None
-    model: Literal["qwen2.5:3b","llama3.2:3b"] = "qwen2.5:3b"
+    # An explicit legacy model keeps all chat roles on one model.
+    model: Literal["qwen2.5:3b","llama3.2:3b","qwen2.5:7b"] | None = None
+    fast_model: Literal["qwen2.5:3b","llama3.2:3b","qwen2.5:7b"] | None = None
+    smart_model: Literal["qwen2.5:7b","qwen2.5:3b","llama3.2:3b"] | None = None
     mode: Literal["none","fixed","agentic"] = "agentic"
     evaluation: bool = False
+
+def research_model_payload(p: AnalysisInput):
+    # Explicit tier choices override the legacy fallback for that tier only.
+    fast=p.fast_model or p.model or "qwen2.5:3b"
+    smart=p.smart_model or p.model or "qwen2.5:7b"
+    return {**p.model_dump(), "model":p.model, "fast_model":fast, "smart_model":smart}
 
 @app.post("/prepare")
 def prepare(p:AnalysisInput):
@@ -453,7 +462,7 @@ def prepare(p:AnalysisInput):
         except Exception as exc: raise HTTPException(503,f"Live evidence ingestion unavailable: {str(exc)[:120]}") from exc
     evidence=[] if p.mode != 'fixed' else fixed_rag(p.question, None if p.evaluation else ticker)['evidence']
     seeded=ticker in SEEDED_CORPUS_TICKERS
-    return {**p.model_dump(),"snapshot":market,"fixed_evidence":evidence,"ticker_seeded_in_corpus":seeded,"evidence_coverage":coverage,
+    return {**research_model_payload(p),"snapshot":market,"fixed_evidence":evidence,"ticker_seeded_in_corpus":seeded,"evidence_coverage":coverage,
             "retrieval_instruction":("DO NOT use the Qdrant tool. No external evidence is available." if p.mode=='none' else
             "DO NOT use the Qdrant tool; only use fixed_evidence supplied here." if p.mode=='fixed' else
             "You MUST choose and call the Qdrant retrieval tool with a query you formulate; inspect the returned source metadata and cite doc IDs. You may reformulate and call again if evidence is insufficient."),
@@ -469,7 +478,7 @@ def research(p:AnalysisInput):
         name=COMPANY_NAMES.get(ticker, ticker)
     else:
         ticker,name=resolve_question_ticker(p.question)
-    payload=p.model_dump()
+    payload=research_model_payload(p)
     payload["ticker"]=ticker
     try:
         with httpx.Client(timeout=300) as client:
