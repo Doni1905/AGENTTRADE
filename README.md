@@ -8,7 +8,7 @@ AGENTTRADE is a local stock-research tool for US-listed equities. It combines n8
 - Each research answer starts with a 2-4 sentence **Simple summary** for readers without a finance background. Technical details follow with a BUY/HOLD/SELL decision where relevant, dated evidence, and brief plain-word explanations of financial terms. An unrelated question gets no forced trading decision.
 - Three research modes: no retrieval (`none`), fixed top-3 retrieval (`fixed`), and agent-selected Qdrant retrieval (`agentic`).
 - Retrieval and analyst roles, short bull/bear arguments and a critic judge, followed by one bounded correction pass.
-- Local models: `qwen2.5:3b` and `llama3.2:3b`; `nomic-embed-text` for embeddings.
+- Two-tier local models: `qwen2.5:7b` for analyst and critic judge; `qwen2.5:3b` for retrieval, bull, bear and bounded correction. `llama3.2:3b` remains a single-model benchmark alternative; `nomic-embed-text` handles embeddings.
 - Python-calculated market indicators and deterministic proposal/risk checks. Research output cannot place an order.
 - A dashboard approval flow for Alpaca paper orders: pending proposals, one-click approve or reject, local approval code, proposal expiry, and duplicate-order checks. An n8n approval form is included as an alternative path.
 - A 25-question benchmark comparing three retrieval modes across both models; the evaluator writes raw responses, measured summaries, and the report table after a local run. A dedicated paper portfolio page reads broker positions, historical profit/loss, and recent broker orders/fills.
@@ -35,7 +35,7 @@ Docker Compose runs two services: `qdrant` (evidence store) and `api` (FastAPI d
 - [Ollama](https://ollama.com/download) installed natively on the host (Mac app or Windows installer), not in Docker.
 - [Node.js](https://nodejs.org/) (current LTS) to run n8n with `npx`.
 - Git and Python 3. The examples below use `python3` (Mac) and `python` (Windows).
-- Enough disk space for two language models and an embedding model. Model downloads can take several minutes.
+- Enough disk space for three language models and an embedding model. Model downloads can take several minutes.
 - Access to this private repository. An [Alpaca paper account](https://app.alpaca.markets/signup) is needed **only** to submit paper orders; research and evaluation do not need Alpaca keys.
 
 ## Quick start
@@ -59,6 +59,7 @@ Run these commands on the machine hosting the stack. On Windows PowerShell, repl
 2. Install the required models with the native Ollama. Make sure Ollama is running (open the app on Mac, or the Ollama service on Windows):
 
    ```sh
+   ollama pull qwen2.5:7b
    ollama pull qwen2.5:3b
    ollama pull llama3.2:3b
    ollama pull nomic-embed-text
@@ -123,6 +124,20 @@ curl -sS http://localhost:5678/webhook/agenttrade-analyze \
 
 `evaluation:true` accepts only AAPL or MSFT and uses frozen educational cards without fetching current prices. Run the benchmark on a clean Qdrant volume before doing live research; live cards already stored in the shared collection could contaminate agentic retrieval. Re-running `/ingest` does not delete live cards. For indicator context, use `evaluation:false`; the API fetches current Yahoo Finance data and fails closed if it is unavailable or stale. Set `mode` to `none`, `fixed`, or `agentic` to compare retrieval behavior. Inspect the n8n execution trace to confirm tool calls in agentic mode. The research form has one natural-language question box: ask "Is TSLA a good buy now?" or "What is your suggestion on Apple?" It detects uppercase tickers or common company names (Apple, Tesla, Microsoft, Nvidia, Google/Alphabet, Amazon, Meta), verifies detected tickers against live Yahoo prices, and asks for confirmation ("Analyzing: Tesla (TSLA)?") before running. If it cannot find one stock, or finds multiple, it asks you to enter a ticker in a fallback field. No analysis begins until you confirm the detected or entered stock. The separate proposal form still requires a symbol. API clients and the evaluation harness can pass an explicit `ticker` to `/research` and `/prepare`; `/prepare` requires one. The dashboard puts the Simple summary first, then technical details. `/research` returns `simple_summary`, `technical_detail`, and the complete `answer`; if an old n8n import does not supply the required format, it shows an error rather than presenting a jargon-only answer. Re-import and publish the updated `workflows/research.json` after pulling; previous imports do not update automatically. An answer is never an order.
 
+### Two-tier model routing
+
+The dashboard defaults to the split setup. Analyst and critic judge use `qwen2.5:7b`; retrieval, bull, bear and bounded correction use `qwen2.5:3b`. Embeddings stay on `nomic-embed-text`. The Simple summary is produced by the analyst and final correction, not a separate model. Correction remains a 3B generation step and can affect the final answer; a larger analyst/judge is not a guarantee of better results. Measure quality and latency on your Mac before making performance claims.
+
+Requests to `/research`, `/prepare`, or the n8n webhook may omit all model fields to use this default, or set `fast_model` and `smart_model` explicitly. Both tier fields accept `qwen2.5:3b`, `llama3.2:3b`, or `qwen2.5:7b`. A legacy `model` request runs all six chat roles on that one model (`qwen2.5:3b`, `llama3.2:3b`, or `qwen2.5:7b`). Explicit tier fields override the legacy fallback for their tier only. Returned `fast_model` and `smart_model` fields identify the resolved routing; The workflow reports `model` as `two-tier` when no legacy selection was provided (the prepare payload uses null). Unknown model names return a validation error. No model is automatically downloaded or silently substituted if unavailable.
+
+```sh
+curl -sS http://localhost:5678/webhook/agenttrade-analyze \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"What is the max paper order notional?","ticker":"AAPL","mode":"agentic","fast_model":"qwen2.5:3b","smart_model":"qwen2.5:7b","evaluation":true}'
+```
+
+After pulling this update, run `ollama pull qwen2.5:7b` and `docker compose up -d --build`. Re-import `workflows/research.json` in n8n, reassign local credentials, set its prepare URL to `http://localhost:8000/prepare`, and publish it. Replace or unpublish the old research workflow so only one production webhook uses `agenttrade-analyze`. The old imported workflow will not gain tier routing by rebuilding Docker. The approval workflow is unchanged.
+
 ### Submit a human-approved paper order
 
 First add `ALPACA_PAPER_KEY_ID` and `ALPACA_PAPER_SECRET_KEY` from your **paper** account to `.env`, then reload the API container:
@@ -155,12 +170,14 @@ curl http://localhost:8000/ledger
 
 ### Evaluate the research workflow
 
-From the repository root, with the research workflow published and both models available:
+From the repository root, with the research workflow published and both 3B benchmark models available:
 
 ```sh
 python3 -m pip install -r requirements.txt
 python3 app/evaluate.py --repeats 1
 ```
+
+The evaluator deliberately sends the legacy `model` field, so each benchmark condition uses one model for all roles. It does not measure the two-tier default.
 
 One repeat still runs 150 requests (25 questions x 3 modes x 2 models); use it to check the pipeline, not to claim final results. The full three-repeat comparison runs 450 requests and may take hours on a laptop:
 
