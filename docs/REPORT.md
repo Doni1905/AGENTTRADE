@@ -53,7 +53,7 @@ This is a local paper research tool, not a production financial service. No logi
 
 ### Natural-language research input
 
-The dashboard takes a single question rather than a separate ticker. The service extracts explicit uppercase tickers or a small, extensible common-name alias map and checks candidates against Yahoo before sending a resolved ticker to the unchanged n8n workflow. No stock or multiple distinct stocks prompts a fallback ticker field, not a guessed recommendation. The user confirms the detected stock before analysis begins. The response labels the detected company and ticker; the benchmark retains its explicit-ticker API path. This detection is deliberately narrow: unfamiliar company names need a ticker.
+The dashboard takes a single question rather than a separate ticker. The service extracts explicit uppercase tickers or a small, extensible common-name alias map and checks candidates against Yahoo before sending a resolved ticker to the unchanged n8n workflow. No stock or multiple distinct stocks prompts a fallback ticker field, not a guessed recommendation. One detected stock starts analysis immediately without a confirmation tap. A small "Analyzing: Apple (AAPL)" indicator labels the company and ticker as research starts; a valid fallback ticker also starts immediately. Market-data outages are shown as errors rather than prompting for a different ticker. Trading still requires explicit human approval; the benchmark retains its explicit-ticker API path. This detection is deliberately narrow: unfamiliar company names need a ticker.
 
 
 ## Two-tier routing update
