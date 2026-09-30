@@ -140,7 +140,7 @@
             {
               "id": "model",
               "name": "model",
-              "value": "={{ $(\"Validate and prepare evidence\").item.json.model }}",
+              "value": "={{ $(\"Validate and prepare evidence\").item.json.model || \"two-tier\" }}",
               "type": "string"
             },
             {
@@ -178,6 +178,18 @@
               "name": "bear_case",
               "value": "={{ $(\"4 Bear case\").item.json.output }}",
               "type": "string"
+            },
+            {
+              "id": "fast-model",
+              "name": "fast_model",
+              "value": "={{ $(\"Validate and prepare evidence\").item.json.fast_model }}",
+              "type": "string"
+            },
+            {
+              "id": "smart-model",
+              "name": "smart_model",
+              "value": "={{ $(\"Validate and prepare evidence\").item.json.smart_model }}",
+              "type": "string"
             }
           ]
         },
@@ -194,7 +206,7 @@
         -340
       ],
       "parameters": {
-        "model": "={{ $(\"Validate and prepare evidence\").item.json.model }}",
+        "model": "={{ $(\"Validate and prepare evidence\").item.json.fast_model }}",
         "options": {}
       },
       "credentials": {
@@ -214,7 +226,7 @@
         470
       ],
       "parameters": {
-        "model": "={{ $(\"Validate and prepare evidence\").item.json.model }}",
+        "model": "={{ $(\"Validate and prepare evidence\").item.json.smart_model }}",
         "options": {}
       },
       "credentials": {
@@ -234,7 +246,7 @@
         440
       ],
       "parameters": {
-        "model": "={{ $(\"Validate and prepare evidence\").item.json.model }}",
+        "model": "={{ $(\"Validate and prepare evidence\").item.json.smart_model }}",
         "options": {}
       },
       "credentials": {
@@ -254,7 +266,7 @@
         440
       ],
       "parameters": {
-        "model": "={{ $(\"Validate and prepare evidence\").item.json.model }}",
+        "model": "={{ $(\"Validate and prepare evidence\").item.json.fast_model }}",
         "options": {}
       },
       "credentials": {
@@ -457,7 +469,7 @@
         440
       ],
       "parameters": {
-        "model": "={{ $(\"Validate and prepare evidence\").item.json.model }}",
+        "model": "={{ $(\"Validate and prepare evidence\").item.json.fast_model }}",
         "options": {}
       },
       "credentials": {
@@ -477,7 +489,7 @@
         440
       ],
       "parameters": {
-        "model": "={{ $(\"Validate and prepare evidence\").item.json.model }}",
+        "model": "={{ $(\"Validate and prepare evidence\").item.json.fast_model }}",
         "options": {}
       },
       "credentials": {
@@ -712,4 +724,4 @@
   "active": false,
   "pinData": {},
   "tags": []
-}
+        }
