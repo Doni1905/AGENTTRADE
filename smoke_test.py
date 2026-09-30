@@ -107,9 +107,23 @@ r=client.post('/detect-stock',json={"question":"Is Tesla a good buy?"})
 check('preflight detects and validates a company',r.status_code==200 and r.json().get('ticker')=='TSLA')
 r=client.post('/detect-stock',json={"question":"I want to buy a stock", "ticker":"NVDA"})
 check('fallback symbol validates separately',r.status_code==200 and r.json().get('ticker')=='NVDA')
+r=client.post('/detect-stock',json={"question":"AAPL or TSLA, which should I buy?"})
+check('detect-stock rejects multiple distinct stocks',r.status_code==422 and 'AAPL, TSLA' in r.json()['detail'])
+r=client.post('/detect-stock',json={"question":"What is your view on Apple AAPL?"})
+check('alias and same ticker are not ambiguous',r.status_code==200 and r.json().get('ticker')=='AAPL')
+original_price_data=main.price_data
+def unavailable_price(ticker):
+    raise main.HTTPException(503,'Fresh market data unavailable')
+main.price_data=unavailable_price
+r=client.post('/detect-stock',json={"question":"Is Apple a good buy?"})
+check('data outage is not a missing-stock clarification',r.status_code==503)
+main.price_data=original_price_data
+
 r=client.post('/detect-stock',json={"question":"What should I buy?"})
 check('preflight asks when company not detected',r.status_code==422 and 'Which stock' in r.json()['detail'])
-check('single research question field, with detected ticker display', 'id="ticker"' not in client.get('/').text and 'id="question"' in client.get('/').text and 'Analyzing: ' in client.get('/').text and 'Yes, run analysis' in client.get('/').text)
+check('single research question field, with detected ticker display', 'id="ticker"' not in client.get('/').text and 'id="question"' in client.get('/').text and 'Analyzing: ' in client.get('/').text and 'Yes, run analysis' not in client.get('/').text and 'await runResearch()' in client.get('/').text)
+check('ticker fallback is limited to missing/ambiguous or invalid entered ticker', "err.status===422 || (fallback && err.status===400)" in client.get('/').text)
+check('running indicator shown before research response', client.get('/').text.index("indicator.textContent='Analyzing: '") < client.get('/').text.index("const data=await req('/research'"))
 check('dashboard highlights summary before details', 'className=\'simple-summary\'' in client.get('/').text and 'data.technical_detail' in client.get('/').text)
 import json
 workflow=json.loads((ROOT/'workflows/research.json').read_text())
