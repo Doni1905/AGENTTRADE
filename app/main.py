@@ -419,6 +419,12 @@ class DetectionInput(BaseModel):
 
 @app.post("/detect-stock")
 def detect_stock(p: DetectionInput):
+    """Resolve/validate a stock for immediate research, not a human approval step.
+
+    Only a missing or ambiguous stock needs ticker clarification (422).
+    Market-data failures retain their 503 status so clients do not ask for a ticker.
+    Trading approval remains a separate requirement in /approval.
+    """
     if p.ticker is not None:
         ticker=p.ticker.strip().upper()
         if not check_symbol_format(ticker): raise unsupported_ticker(ticker)
