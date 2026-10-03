@@ -397,6 +397,8 @@ def live_evidence_cards(ticker: str, market: dict, stock=None):
     # is used as a fallback. This fallback is always safe to use.
     # ---------------------------------------------------------------------------
     news_key=os.getenv("NEWSAPI_KEY", "").strip()
+    if news_key:
+        logger.warning("NEWSAPI_KEY is active. Ensure this is for local testing only; NewsAPI developer plan is prohibited in staging/production.")
     news_source="Yahoo Finance news listing"
     news=[]
     if news_key:
