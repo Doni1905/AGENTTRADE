@@ -27,7 +27,24 @@ The final correction pass begins with a 2-4 sentence Simple summary for a reader
 **Results status:** not measured in this build environment; no local Docker daemon or models are available here. Run `python3 app/evaluate.py --repeats 1` as a pipeline smoke check, then `python3 app/evaluate.py --repeats 3` on a fresh Qdrant collection before live research. The evaluator writes actual responses to `results/` and replaces only the bounded section below with measured tables. Never paste illustrative numbers into the final report.
 
 <!-- EVAL_RESULTS_START -->
-Not measured yet. Run the local evaluation on a fresh Qdrant collection.
+# Evaluation results
+
+Run began (UTC): 2026-10-03T16:24:59.631855+00:00.
+25 frozen questions, 3 repeat(s) per model and retrieval mode.
+
+| Model | RAG mode | Successful / attempted | Accuracy | Reasoning proxy | Citation rate | Exact consistency | Errors |
+|---|---|---:|---:|---:|---:|---:|---:|
+| qwen2.5:3b | none | 75 / 75 | 0.307 | 0.000 | 0.013 | 0.000 | 0 |
+| qwen2.5:3b | fixed | 75 / 75 | 0.707 | 0.000 | 0.000 | 0.000 | 0 |
+| qwen2.5:3b | agentic | 75 / 75 | 0.640 | 0.013 | 0.053 | 0.000 | 0 |
+| llama3.2:3b | none | 75 / 75 | 0.293 | 0.000 | 0.000 | 0.000 | 0 |
+| llama3.2:3b | fixed | 75 / 75 | 0.893 | 0.000 | 0.000 | 0.000 | 0 |
+| llama3.2:3b | agentic | 75 / 75 | 0.747 | 0.027 | 0.027 | 0.000 | 0 |
+
+Scores exclude failed requests and show their counts explicitly; a row with no successful requests is n/a.
+Accuracy is strict labeled-term matching, not expert judgment. Reasoning is a citation/rationale proxy.
+With one repeat, consistency is n/a; use three or more repeats for a consistency comparison.
+Inspect raw.csv and n8n traces for actual source support and tool calls. No trading performance inference.
 <!-- EVAL_RESULTS_END --> If pricing is tested, current Yahoo snapshots cannot recreate a historical point-in-time backtest and should be excluded from the frozen QA comparison.
 
 ## Limits and threats to validity
