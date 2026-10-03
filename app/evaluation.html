@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AGENTTRADE | AD23731 Evaluation</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { 
+    --bg: #09090b; 
+    --fg: #fafafa; 
+    --accent: #10b981; 
+    --accent-glow: rgba(16, 185, 129, 0.2);
+    --panel: rgba(24, 24, 27, 0.6); 
+    --border: rgba(39, 39, 42, 0.8); 
+    --muted: #a1a1aa; 
+    --nav-border: rgba(255, 255, 255, 0.1);
+  }
+  body { 
+    background: var(--bg); 
+    color: var(--fg); 
+    font-family: 'Inter', system-ui, sans-serif; 
+    margin: 0; 
+    line-height: 1.6; 
+    background-image: radial-gradient(circle at 50% -20%, rgba(16, 185, 129, 0.15), rgba(9, 9, 11, 1) 40%);
+    min-height: 100vh;
+  }
+  header { 
+    background: rgba(9, 9, 11, 0.7); 
+    backdrop-filter: blur(16px); 
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--nav-border); 
+    position: sticky; 
+    top: 0; 
+    z-index: 100; 
+  }
+  .top { 
+    max-width: 1200px; 
+    margin: auto; 
+    padding: 20px 32px; 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+  }
+  .brand { 
+    font-weight: 800; 
+    font-size: 1.25rem; 
+    letter-spacing: 0.1em; 
+    background: linear-gradient(90deg, #10b981, #3b82f6); 
+    -webkit-background-clip: text; 
+    -webkit-text-fill-color: transparent; 
+  }
+  .nav { display: flex; gap: 32px; align-items: center;}
+  .nav a { 
+    color: var(--muted); 
+    text-decoration: none; 
+    font-weight: 600; 
+    font-size: 0.9rem;
+    transition: all 0.3s ease; 
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .nav a:hover, .nav a[aria-current="page"] { 
+    color: var(--fg); 
+    text-shadow: 0 0 12px rgba(255,255,255,0.3);
+  }
+  .nav a[aria-current="page"] {
+      border-bottom: 2px solid var(--accent);
+      padding-bottom: 4px;
+  }
+  main { max-width: 1000px; margin: 60px auto; padding: 0 32px 80px; }
+  
+  .hero {
+      text-align: center;
+      margin-bottom: 60px;
+      animation: fadeUp 0.8s ease forwards;
+  }
+  .eyebrow {
+      color: var(--accent);
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      margin-bottom: 16px;
+      display: inline-block;
+  }
+  h1 { 
+    font-size: clamp(2.5rem, 5vw, 3.5rem); 
+    font-weight: 800; 
+    margin: 0 0 16px 0; 
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+  }
+  .intro { color: var(--muted); font-size: 1.25rem; max-width: 700px; margin: 0 auto; }
+  
+  .checklist {
+      margin-top: 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+  }
+
+  .check-item {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+      opacity: 0;
+      transform: translateX(-20px);
+      animation: slideIn 0.5s ease forwards;
+  }
+  
+  .check-item:nth-child(1) { animation-delay: 0.1s; }
+  .check-item:nth-child(2) { animation-delay: 0.2s; }
+  .check-item:nth-child(3) { animation-delay: 0.3s; }
+  .check-item:nth-child(4) { animation-delay: 0.4s; }
+
+  .check-icon {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      background: rgba(16,185,129,0.15);
+      color: var(--accent);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+  }
+  
+  .check-icon svg { width: 18px; height: 18px; }
+  
+  .check-content h3 {
+      margin: 0 0 8px 0;
+      font-size: 1.2rem;
+      font-weight: 700;
+  }
+  
+  .check-content p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+  }
+
+  @keyframes fadeUp {
+      to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slideIn {
+      to { opacity: 1; transform: translateX(0); }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="top">
+      <div class="brand">AGENTTRADE</div>
+      <nav class="nav">
+        <a href="/">Research</a>
+        <a href="/portfolio">Portfolio</a>
+        <a href="/architecture">Architecture</a>
+        <a href="/evaluation" aria-current="page">AD23731 Evaluation</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <div class="hero">
+        <span class="eyebrow">Academic Review</span>
+        <h1>Foundations of Agentic AI (AD23731)</h1>
+        <p class="intro">Mapping AgentTrade capabilities directly to the Rajalakshmi Engineering College Evaluation Rubric.</p>
+    </div>
+
+    <div class="checklist">
+        <div class="check-item">
+            <div class="check-icon"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg></div>
+            <div class="check-content">
+                <h3>Problem Statement & Business Case</h3>
+                <p><strong>Implemented:</strong> The platform solves the problem of automated, unbiased equity research by removing emotional trading and relying exclusively on structured multi-agent evidence analysis.</p>
+            </div>
+        </div>
+        
+        <div class="check-item">
+            <div class="check-icon"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg></div>
+            <div class="check-content">
+                <h3>Dataset & Knowledge Source Identification</h3>
+                <p><strong>Implemented:</strong> Integrated directly with Qdrant for vectorized semantic retrieval (RAG) of financial reports, and live market data/news APIs.</p>
+            </div>
+        </div>
+        
+        <div class="check-item">
+            <div class="check-icon"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg></div>
+            <div class="check-content">
+                <h3>Tools & Frameworks</h3>
+                <p><strong>Implemented:</strong> Successfully integrated n8n (Orchestration), Ollama Qwen (Local LLMs), Qdrant (Vector DB), FastAPI, and vanilla HTML/JS.</p>
+            </div>
+        </div>
+
+        <div class="check-item">
+            <div class="check-icon"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg></div>
+            <div class="check-content">
+                <h3>Agent Workflow & Orchestration Design</h3>
+                <p><strong>Implemented:</strong> The n8n workflow strictly bounds Agent roles: 1) Researcher, 2) Analyst, 3) Critic. The Critic provides explicit boundaries and correction cycles.</p>
+            </div>
+        </div>
+    </div>
+  </main>
+</body>
+</html>

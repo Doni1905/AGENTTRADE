@@ -123,8 +123,8 @@ r=client.post('/detect-stock',json={"question":"What should I buy?"})
 check('preflight asks when company not detected',r.status_code==422 and 'Which stock' in r.json()['detail'])
 check('single research question field, with detected ticker display', 'id="ticker"' not in client.get('/').text and 'id="question"' in client.get('/').text and 'Analyzing: ' in client.get('/').text and 'Yes, run analysis' not in client.get('/').text and 'await runResearch()' in client.get('/').text)
 check('ticker fallback is limited to missing/ambiguous or invalid entered ticker', "err.status===422 || (fallback && err.status===400)" in client.get('/').text)
-check('running indicator shown before research response', client.get('/').text.index("indicator.textContent='Analyzing: '") < client.get('/').text.index("const data=await req('/research'"))
-check('dashboard highlights summary before details', 'className=\'simple-summary\'' in client.get('/').text and 'data.technical_detail' in client.get('/').text)
+check('running indicator shown before research response', client.get('/').text.index("indicator.textContent = 'Analyzing: '") < client.get('/').text.index("const data = await req('/research'"))
+check('dashboard highlights summary before details', "className = 'simple-summary'" in client.get('/').text and 'data.technical_detail' in client.get('/').text)
 import json
 workflow=json.loads((ROOT/'workflows/research.json').read_text())
 node={n['name']:n for n in workflow['nodes']}

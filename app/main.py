@@ -1,13 +1,32 @@
 """Deterministic market data, retrieval ingestion and Alpaca paper-only orders."""
+import logging
+import logging.handlers
 import os, json, sqlite3, time, hashlib, math, re, secrets, threading
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Literal
 import httpx
 import yfinance as yf
+import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
+
+# ---------------------------------------------------------------------------
+# Logging — rotating file (5 MB × 3 backups) + stderr; replaces open("debug.log").
+# ---------------------------------------------------------------------------
+_log_file = Path(os.getenv("LOG_PATH", "agenttrade.log"))
+_log_file.parent.mkdir(parents=True, exist_ok=True)
+_handler = logging.handlers.RotatingFileHandler(
+    _log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+)
+_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[_handler, logging.StreamHandler()],
+    force=True,
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="AGENTTRADE deterministic service", version="1.3")
 DB = os.getenv("DATABASE_PATH", "/tmp/agenttrade.sqlite3")
@@ -94,7 +113,14 @@ def price_data(ticker: str):
     if not check_symbol_format(ticker):
         raise unsupported_ticker(ticker)
     try:
-        df = yf.download(ticker, period="6mo", interval="1d", progress=False, auto_adjust=True, threads=False, timeout=15)
+        df = pd.DataFrame()
+        for attempt in range(3):
+            try:
+                df = yf.download(ticker, period="6mo", interval="1d", progress=False, auto_adjust=True, threads=False, timeout=15)
+                if not df.empty: break
+                time.sleep(1)
+            except Exception:
+                time.sleep(1)
         if df.empty:
             # Yahoo Finance returns no rows for unknown or delisted symbols.
             raise unsupported_ticker(ticker)
@@ -110,7 +136,12 @@ def price_data(ticker: str):
         deltas = close.diff().dropna(); gains = deltas.clip(lower=0).ewm(alpha=1/14, adjust=False).mean(); losses = (-deltas.clip(upper=0)).ewm(alpha=1/14, adjust=False).mean()
         loss = float(losses.iloc[-1]); gain = float(gains.iloc[-1]); rsi = 100.0 if loss == 0 and gain > 0 else (50.0 if loss == 0 else 100-100/(1+gain/loss))
         ema12 = close.ewm(span=12, adjust=False).mean(); ema26 = close.ewm(span=26, adjust=False).mean(); macd = ema12-ema26
-        return {"ticker":ticker,"as_of":last_date,"retrieved_at":datetime.now(timezone.utc).isoformat(),"currency":"USD", "price":round(prices[-1],2),"recent_closes": [round(v,2) for v in prices[-5:]],"sma20":round(sum(prices[-20:])/20,2),"sma50":round(sum(prices[-50:])/50,2) if len(prices)>=50 else None,"rsi14":round(rsi,2),"macd":round(float(macd.iloc[-1]),3),"signal_line":round(float(macd.ewm(span=9,adjust=False).mean().iloc[-1]),3),"data_source":"Yahoo Finance via yfinance; delayed/unofficial, educational use only"}
+        # SMA50 requires at least 50 valid daily closes; None is returned and surfaced
+        # to the model as "unavailable" so it does not hallucinate a value.
+        sma50 = round(sum(prices[-50:])/50, 2) if len(prices) >= 50 else None
+        if sma50 is None:
+            logger.info("%s: fewer than 50 closes available; SMA50 unavailable", ticker)
+        return {"ticker":ticker,"as_of":last_date,"retrieved_at":datetime.now(timezone.utc).isoformat(),"currency":"USD", "price":round(prices[-1],2),"recent_closes": [round(v,2) for v in prices[-5:]],"sma20":round(sum(prices[-20:])/20,2),"sma50":sma50,"sma50_note":"unavailable (fewer than 50 trading days of history)" if sma50 is None else None,"rsi14":round(rsi,2),"macd":round(float(macd.iloc[-1]),3),"signal_line":round(float(macd.ewm(span=9,adjust=False).mean().iloc[-1]),3),"data_source":"Yahoo Finance via yfinance; delayed/unofficial, educational use only"}
     except HTTPException: raise
     except Exception as exc: raise HTTPException(503, f"Fresh market data unavailable; trading blocked: {exc}") from exc
 
@@ -118,7 +149,8 @@ def price_data(ticker: str):
 def dashboard():
     # Local-only page; approval code is rendered here and must never be exposed publicly.
     html=(Path(__file__).parent/"dashboard.html").read_text()
-    return html.replace("__APPROVAL_CODE__", json.dumps(os.getenv("APPROVAL_CODE", "")).replace("<", "\\u003c"))
+    html_content = html.replace("__APPROVAL_CODE__", json.dumps(os.getenv("APPROVAL_CODE", "")).replace("<", "\\u003c"))
+    return HTMLResponse(content=html_content, headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"})
 
 @app.get("/health")
 def health(): return {"status":"ok","symbol_universe":"any valid US-listed symbol, validated live via Yahoo Finance","seeded_corpus_tickers":sorted(SEEDED_CORPUS_TICKERS)}
@@ -137,6 +169,16 @@ def risk(ticker, side, qty, price, db=None):
     if qty*price > 1000: errors.append("max order notional USD 1,000")
     if qty > 5: errors.append("max 5 shares per order")
     return errors
+
+class LoginRequest(BaseModel):
+    password: str
+
+@app.post("/login")
+def login(req: LoginRequest):
+    code = os.getenv("APPROVAL_CODE", "")
+    if code and secrets.compare_digest(req.password, code):
+        return {"status": "success"}
+    raise HTTPException(401, "Invalid password")
 
 @app.post("/proposal")
 def create_proposal(p:Proposal):
@@ -262,6 +304,14 @@ def ledger():
 def portfolio_page():
     return (Path(__file__).parent/"portfolio.html").read_text()
 
+@app.get("/architecture",response_class=HTMLResponse)
+def architecture_page():
+    return (Path(__file__).parent/"architecture.html").read_text()
+
+@app.get("/evaluation",response_class=HTMLResponse)
+def evaluation_page():
+    return (Path(__file__).parent/"evaluation.html").read_text()
+
 @app.get("/api/portfolio")
 def portfolio():
     """Broker-owned positions and equity history, never inferred from unfilled ledger orders."""
@@ -338,6 +388,14 @@ def live_evidence_cards(ticker: str, market: dict, stock=None):
                               + json.dumps(fields, ensure_ascii=True, default=str) + ". Figures may be delayed or unavailable."))
     except Exception:
         pass  # A failed optional stats endpoint must not erase the price card.
+    # ---------------------------------------------------------------------------
+    # NEWS: NewsAPI free Developer plan is permitted for local development/testing
+    # ONLY. It is delayed by 24 hours, capped at 100 requests/day, and explicitly
+    # PROHIBITED in staging or production (including internal production).
+    # See: https://newsapi.org/pricing
+    # When NEWSAPI_KEY is absent or the fetch fails, Yahoo Finance headline lookup
+    # is used as a fallback. This fallback is always safe to use.
+    # ---------------------------------------------------------------------------
     news_key=os.getenv("NEWSAPI_KEY", "").strip()
     news_source="Yahoo Finance news listing"
     news=[]
@@ -360,8 +418,8 @@ def live_evidence_cards(ticker: str, market: dict, stock=None):
         try: news=stock.news or []
         except Exception: news=[]
     for index,item in enumerate(news[:5]):
-        detail=item.get("content",item) if isinstance(item,dict) else None
-        if not isinstance(detail,dict): continue
+        if not isinstance(item, dict): continue
+        detail = item.get("content") if isinstance(item.get("content"), dict) else item
         title=str(detail.get("title") or item.get("title") or "").strip()[:260]
         if not title or title=="[Removed]": continue
         publisher=detail.get("provider") or detail.get("publisher") or item.get("publisher") or item.get("source") or news_source
@@ -454,7 +512,7 @@ def research_model_payload(p: AnalysisInput):
 @app.post("/prepare")
 def prepare(p:AnalysisInput):
     # Evaluation uses only frozen dated source cards to avoid changing answers and future leakage.
-    ticker=(p.ticker or "").upper()
+    ticker=(p.ticker or "").strip().upper()
     if not check_symbol_format(ticker): raise unsupported_ticker(ticker)
     if not p.question.strip() or len(p.question.strip())<5: raise HTTPException(422,"Enter a research question of at least five non-space characters")
     if p.evaluation and ticker not in SEEDED_CORPUS_TICKERS:
@@ -468,10 +526,24 @@ def prepare(p:AnalysisInput):
         except Exception as exc: raise HTTPException(503,f"Live evidence ingestion unavailable: {str(exc)[:120]}") from exc
     evidence=[] if p.mode != 'fixed' else fixed_rag(p.question, None if p.evaluation else ticker)['evidence']
     seeded=ticker in SEEDED_CORPUS_TICKERS
-    return {**research_model_payload(p),"snapshot":market,"fixed_evidence":evidence,"ticker_seeded_in_corpus":seeded,"evidence_coverage":coverage,
+    
+    user_owns_stock = False
+    if not p.evaluation and (os.getenv("ALPACA_PAPER_KEY_ID") and os.getenv("ALPACA_PAPER_SECRET_KEY")):
+        try:
+            with httpx.Client(timeout=10) as client:
+                positions = alpaca_get(client, "/v2/positions", alpaca_headers())
+                for pos in positions:
+                    if pos.get("symbol") == ticker and float(pos.get("qty", 0)) > 0:
+                        user_owns_stock = True
+                        break
+        except Exception:
+            pass
+
+    return {**research_model_payload(p),"input":p.question,"snapshot":market,"fixed_evidence":evidence,"ticker_seeded_in_corpus":seeded,"evidence_coverage":coverage, "user_owns_stock": user_owns_stock,
+
             "retrieval_instruction":("DO NOT use the Qdrant tool. No external evidence is available." if p.mode=='none' else
             "DO NOT use the Qdrant tool; only use fixed_evidence supplied here." if p.mode=='fixed' else
-            "You MUST choose and call the Qdrant retrieval tool with a query you formulate; inspect the returned source metadata and cite doc IDs. You may reformulate and call again if evidence is insufficient."),
+            "You MUST choose and call the Qdrant retrieval tool with a query you formulate. Provide your search string in the 'input' parameter, NOT 'query'. Inspect the returned source metadata and cite doc IDs. You may reformulate and call again if evidence is insufficient."),
             "warning":("Frozen benchmark: educational synthetic cards only; historical policy card 3 is not current trading policy." if p.evaluation else
             "Live cards include delayed public data; news is headline-only. Synthetic policy cards are historical classroom examples and card 3's AAPL/MSFT restriction is obsolete. Cite live sources for current facts. " + (coverage['quality_note'] if coverage else "No retrieval in this mode."))}
 
@@ -493,12 +565,31 @@ def research(p:AnalysisInput):
             result=r.json()
             if not isinstance(result, dict) or not isinstance(result.get("answer"),str):
                 raise HTTPException(502,"Research returned an unexpected answer. Check the n8n workflow output.")
-            match=re.fullmatch(r"\s*Simple summary:\s*\n(.+?)\n\s*Technical details:\s*\n(.+)\s*",result["answer"],re.I|re.S)
+            match=re.search(r"(?:\*\*|#+)?\s*Simple summary:?(?:\*\*)?\s*(.+?)\n+\s*(?:\*\*|#+)?\s*Technical details:?(?:\*\*)?\s*(.+)\s*",result["answer"],re.I|re.S)
             if not match or not match.group(1).strip() or not match.group(2).strip():
+                # Log to rotating file instead of appending to a static debug.log.
+                logger.warning("Research answer missing simple summary / technical details. RAW_ANSWER: %r", result.get("answer"))
                 raise HTTPException(502,"Research did not return a simple summary and technical details. Re-import and publish the updated n8n workflow, then retry.")
             summary,details=match.group(1).strip(),match.group(2).strip()
-            if result.get("simple_summary") not in (None,"",summary):
-                raise HTTPException(502,"Research summary differs from the final answer. Check the n8n workflow output.")
+            # Reject if the dashboard-rendered summary would differ from the extracted one.
+            if result.get("simple_summary") and result["simple_summary"].strip() != summary:
+                logger.warning("simple_summary field (%r) differs from extracted summary (%r)", result["simple_summary"][:120], summary[:120])
+                raise HTTPException(502,"Research simple_summary field differs from extracted summary. Re-import and publish the updated n8n workflow, then retry.")
+            
+            # Clean up hallucinated prompt instructions from model output
+            instructions_markers = [
+                "Technical details: Start exactly with",
+                "CRITICAL INSTRUCTION:",
+                "Explain every technical term",
+                "Produce the final corrected answer in exactly one pass"
+            ]
+            for marker in instructions_markers:
+                if marker in details:
+                    details = details.split(marker)[0].strip()
+            
+            # Condense multiple blank lines to at most two
+            details = re.sub(r'\n{3,}', '\n\n', details)
+            
             result["simple_summary"]=summary
             result["technical_detail"]=details
             result["ticker"]=ticker

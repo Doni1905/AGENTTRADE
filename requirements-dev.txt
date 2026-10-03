@@ -1,0 +1,15 @@
+# Development and testing dependencies only.
+# Do NOT add these to requirements.txt — they are not needed in the Docker image.
+#
+# Install with:  pip install -r requirements-dev.txt
+# Run tests:     python3 smoke_test.py
+#                pytest                        (after migrating to pytest)
+#
+# Production dependencies are in requirements.txt.
+
+# Testing framework (smoke_test.py uses FastAPI's built-in TestClient from anyio)
+pytest==8.3.5
+anyio[trio]==4.6.2
+
+# Presentation generation (scripts/create_ppt.py)
+python-pptx==1.0.2

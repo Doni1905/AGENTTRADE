@@ -206,6 +206,8 @@ Offline checks for the API, risk rules, approval gate, and dashboard rendering. 
 python3 smoke_test.py
 ```
 
+API warnings and debug output are written to `agenttrade.log` (rotating, up to 5 MB × 3 backups). The old `debug.log` is no longer created.
+
 ## Project structure
 
 ```text
@@ -216,17 +218,23 @@ AGENTTRADE/
 │   ├── evaluate.py       # Benchmark runner
 │   └── main.py           # API, ingestion, risk checks, paper-order ledger
 ├── data/
-│   ├── corpus.json       # Synthetic evidence cards
+│   ├── corpus.json       # Synthetic evidence cards (card 3 two-ticker restriction is obsolete; see card text)
 │   └── questions.json    # Frozen benchmark cases
 ├── docs/
-│   └── REPORT.md         # Design, rubric mapping, and validity limits
+│   ├── REPORT.md         # Design, rubric mapping, and validity limits
+│   └── EVALUATION.md     # Academic criteria mapping (AD23731)
+├── scripts/
+│   ├── create_ppt.py     # Generates AgentTrade_Presentation.pptx (requires python-pptx)
+│   ├── patch_main.py     # One-time development patch; already applied, kept for audit
+│   └── README.md         # Script usage notes
 ├── workflows/
 │   ├── approval.json     # Human approval form
 │   └── research.json     # Research orchestration
 ├── .env.example          # Local configuration template
 ├── compose.yaml          # Qdrant and API services
 ├── Dockerfile            # API image
-├── requirements.txt      # Python dependencies
+├── requirements.txt      # Production Python dependencies
+├── requirements-dev.txt  # Development/test dependencies (pytest, python-pptx)
 ├── smoke_test.py         # Offline API and dashboard checks
 └── README.md
 ```

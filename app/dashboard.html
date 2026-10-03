@@ -1,21 +1,64 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <title>AGENTTRADE | Research desk</title>
 <style>
 :root{color-scheme:light;--ink:#172630;--muted:#5b6c76;--line:#d6dddf;--paper:#f7f8f6;--accent:#0e584f;--danger:#8f2d2d}
 *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 header{background:#fff;border-bottom:1px solid var(--line)}.top{max-width:1160px;margin:auto;padding:19px 30px;display:flex;align-items:center;justify-content:space-between}.brand{font-size:16px;font-weight:760;letter-spacing:.095em}.chip{border:1px solid #bbd9d3;color:#155f51;background:#f2faf7;border-radius:3px;padding:5px 10px;font-size:11px;letter-spacing:.1em;font-weight:700;text-transform:uppercase}
-main{max-width:1160px;margin:0 auto;padding:50px 30px 80px}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.16em;font-weight:740;color:var(--accent)}h1{font-size:clamp(32px,4vw,52px);letter-spacing:-.045em;line-height:1.09;margin:12px 0}h2{font-size:18px;letter-spacing:-.02em;margin:0 0 18px}h3{font-size:14px;margin:26px 0 10px}.intro{max-width:620px;color:var(--muted);font-size:16px;margin:0 0 34px}.layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(275px,1fr);gap:18px}.panel{background:#fff;border:1px solid var(--line);padding:27px;min-width:0;margin-top:18px}main>.panel{margin-top:18px}.layout>.panel{margin-top:0}.panel:first-child{margin-top:0}.panel small{color:var(--muted)}label{font-size:12px;font-weight:700;display:block;margin:17px 0 7px}select,textarea,input,button{font:inherit}select,textarea,input[type=text],input[type=number]{width:100%;background:#fff;border:1px solid #bac5ca;border-radius:3px;color:var(--ink);padding:10px 12px}textarea{min-height:120px;resize:vertical}select:focus,textarea:focus,input:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.two>div,.three>div{min-width:0}.two label,.three label{margin-top:18px}.two input,.three input,.two select,.three select{min-height:44px}button{border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:3px;font-size:13px;font-weight:700;cursor:pointer;padding:11px 16px;margin-top:20px}button:disabled{opacity:.6;cursor:wait}button.ghost{background:#fff;color:var(--ink);border-color:#bac5ca}button.reject{background:#fff;color:var(--danger);border-color:#d9b3b3;margin-top:0}button.approve{margin-top:0}.steps{margin:0;padding:0;list-style:none;counter-reset:steps}.steps li{border-top:1px solid var(--line);padding:15px 0 15px 36px;position:relative}.steps li:before{counter-increment:steps;content:"0" counter(steps);position:absolute;left:0;font-size:11px;font-weight:750;color:var(--accent)}.steps strong{display:block;font-size:13px}.steps span{color:var(--muted);font-size:13px}.note{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:var(--muted);margin-top:20px}.confirm{border:1px solid #bbd9d3;background:#edf6f2;padding:18px;margin-top:16px}.confirm button{margin:10px 10px 0 0}.confirm .fallback{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.confirm input{max-width:180px}.detected-ticker{font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.04em}.simple-summary{background:#edf6f2;border-left:4px solid var(--accent);padding:18px 20px;margin:18px 0;line-height:1.65;font-size:15px}.simple-summary h3{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--accent);margin:0 0 8px}.simple-summary p{margin:0;white-space:pre-wrap}.technical-details{white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.65}.technical-details h3{font-size:12px;text-transform:uppercase;letter-spacing:.09em;margin:0 0 10px}.coverage{font-size:12px;color:var(--muted);margin-top:16px;overflow-wrap:anywhere}.result{margin-top:18px;white-space:pre-wrap;word-break:break-word;font-size:13px;background:#f4f7f6;border:1px solid #d9e4e0;padding:18px;min-height:75px}.footer{font-size:12px;color:var(--muted);margin-top:32px}a{color:var(--accent)}
+main{max-width:1160px;margin:0 auto;padding:50px 30px 80px}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.16em;font-weight:740;color:var(--accent)}h1{font-size:clamp(32px,4vw,52px);letter-spacing:-.045em;line-height:1.09;margin:12px 0}h2{font-size:18px;letter-spacing:-.02em;margin:0 0 18px}h3{font-size:14px;margin:26px 0 10px}.intro{max-width:620px;color:var(--muted);font-size:16px;margin:0 0 34px}.layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(275px,1fr);gap:18px}.panel{background:#fff;border:1px solid var(--line);padding:27px;min-width:0;margin-top:18px}main>.panel{margin-top:18px}.layout>.panel{margin-top:0}.panel:first-child{margin-top:0}.panel small{color:var(--muted)}label{font-size:12px;font-weight:700;display:block;margin:17px 0 7px}select,textarea,input,button{font:inherit}select,textarea,input[type=text],input[type=number]{appearance:none;width:100%;background:#fff;border:1px solid #bac5ca;border-radius:3px;color:var(--ink);padding:10px 12px}textarea{min-height:120px;resize:vertical}select:focus,textarea:focus,input:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.two>div,.three>div{min-width:0}.two label,.three label{margin-top:0}.two input,.three input,.two select,.three select{min-height:44px}button{border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:3px;font-size:13px;font-weight:700;cursor:pointer;padding:11px 16px;margin-top:20px}button:disabled{opacity:.6;cursor:wait}button.ghost{background:#fff;color:var(--ink);border-color:#bac5ca}button.reject{background:#fff;color:var(--danger);border-color:#d9b3b3;margin-top:0}button.approve{margin-top:0}.steps{margin:0;padding:0;list-style:none;counter-reset:steps}.steps li{border-top:1px solid var(--line);padding:15px 0 15px 36px;position:relative}.steps li:before{counter-increment:steps;content:"0" counter(steps);position:absolute;left:0;font-size:11px;font-weight:750;color:var(--accent)}.steps strong{display:block;font-size:13px}.steps span{color:var(--muted);font-size:13px}.note{border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:var(--muted);margin-top:20px}.confirm{border:1px solid #bbd9d3;background:#edf6f2;padding:18px;margin-top:16px}.confirm button{margin:10px 10px 0 0}.confirm .fallback{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.confirm input{max-width:180px}.detected-ticker{font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.04em}.simple-summary{background:#edf6f2;border-left:4px solid var(--accent);padding:18px 20px;margin:18px 0;line-height:1.65;font-size:15px}.simple-summary h3{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--accent);margin:0 0 8px}.simple-summary p{margin:0}.technical-details{word-break:break-word;font-size:13px;line-height:1.65}.technical-details h3{font-size:12px;text-transform:uppercase;letter-spacing:.09em;margin:0 0 10px}.technical-details ul{margin-top:0.5em;margin-bottom:0.5em;padding-left:20px}.technical-details p{margin-top:0.5em;margin-bottom:0.5em}.coverage{font-size:12px;color:var(--muted);margin-top:16px;overflow-wrap:anywhere}.result{margin-top:18px;word-break:break-word;font-size:13px;background:#f4f7f6;border:1px solid #d9e4e0;padding:18px;min-height:75px}.footer{font-size:12px;color:var(--muted);margin-top:32px}a{color:var(--accent)}
 .tablewrap{max-width:100%;overflow-x:auto;border:1px solid var(--line);border-radius:3px}.tablewrap table{min-width:650px;table-layout:fixed}table{width:100%;border-collapse:collapse;font-size:13px}#pending table{min-width:930px}#pending th:nth-child(1){width:15%}#pending th:nth-child(2){width:21%}#pending th:nth-child(3){width:25%}#pending th:nth-child(4){width:17%}#pending th:nth-child(5){width:22%}#proposals th:nth-child(1){width:20%}#proposals th:nth-child(2){width:34%}#proposals th:nth-child(3){width:25%}#proposals th:nth-child(4){width:21%}#trades th:nth-child(1){width:20%}#trades th:nth-child(2){width:30%}#trades th:nth-child(3){width:28%}#trades th:nth-child(4){width:22%}th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-align:left;padding:12px 14px;border-bottom:1px solid var(--line)}td{padding:14px;border-bottom:1px solid #e7ebec;vertical-align:top;overflow-wrap:anywhere;word-break:normal}.status{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}.status.pending{color:#8a6d1a}.status.submitted_to_alpaca{color:var(--accent)}.status.rejected,.status.expired{color:var(--danger)}.actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:start}.actions button{width:100%;padding:9px 8px;font-size:12px;white-space:nowrap}tbody tr:last-child td{border-bottom:0}.code-row{display:flex;align-items:center;gap:10px;margin-top:14px}.code-row label{margin:0;white-space:nowrap}.code-row input{max-width:280px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}.empty{color:var(--muted);font-size:13px;padding:14px 0}.rationale{color:var(--muted);max-width:340px}.msg{font-size:13px;margin-top:12px;min-height:18px}.msg.err{color:var(--danger)}.msg.ok{color:var(--accent)}
 @media(max-width:750px){.tablewrap{border:0;overflow:visible}.tablewrap table,#pending table{min-width:0;table-layout:auto}.tablewrap table,.tablewrap tbody,.tablewrap tr,.tablewrap td{display:block;width:100%}.tablewrap thead,.tablewrap tr:first-child:has(th){display:none}.tablewrap tr:has(td){border:1px solid var(--line);border-radius:3px;margin-bottom:10px;padding:8px 12px}.tablewrap td{display:grid;grid-template-columns:90px minmax(0,1fr);gap:8px;align-items:start;padding:8px 0;border-bottom:1px solid #e7ebec}.tablewrap td:last-child{border-bottom:0}.tablewrap td:before{font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--muted)}#pending td:nth-child(1):before{content:"Proposal"}#pending td:nth-child(2):before{content:"Order"}#pending td:nth-child(3):before{content:"Rationale"}#pending td:nth-child(4):before{content:"Created"}#pending td:nth-child(5):before{content:"Decision"}#proposals td:nth-child(1):before{content:"ID"}#proposals td:nth-child(2):before{content:"Order"}#proposals td:nth-child(3):before{content:"Status"}#proposals td:nth-child(4):before{content:"Created"}#trades td:nth-child(1):before{content:"Proposal"}#trades td:nth-child(2):before{content:"Order"}#trades td:nth-child(3):before{content:"Alpaca order"}#trades td:nth-child(4):before{content:"Submitted"}.actions{max-width:260px}main{padding:34px 18px}.top{padding:16px 18px;gap:12px;flex-wrap:wrap}.layout{grid-template-columns:1fr}.layout>.panel+.panel{margin-top:18px}.panel{padding:20px}.two,.three{grid-template-columns:1fr;gap:0}.rationale{max-width:none}}
 .nav{display:flex;gap:20px;align-items:center}.nav a{color:var(--muted);font-size:13px;text-decoration:none;font-weight:650}.nav a[aria-current=page]{color:var(--accent);border-bottom:2px solid var(--accent);padding-bottom:3px}.nav a:hover{text-decoration:underline}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root { --ink: #fafafa; --muted: #a1a1aa; --line: #27272a; --paper: #09090b; --accent: #10b981; --danger: #ef4444; }
+body { font-family: 'Inter', system-ui, sans-serif; background-image: radial-gradient(circle at 50% -20%, rgba(16, 185, 129, 0.15), rgba(9, 9, 11, 1) 40%); min-height: 100vh;}
+header { background: rgba(9, 9, 11, 0.7) !important; backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important; }
+.panel, .section, .metric, .chartwrap { background: rgba(24, 24, 27, 0.6) !important; border-color: rgba(39, 39, 42, 0.8) !important; color: #fafafa !important; border-radius: 12px !important; }
+input, textarea, select { background: rgba(9, 9, 11, 0.8) !important; border: 1px solid rgba(63, 63, 70, 0.8) !important; color: #fafafa !important; border-radius: 8px !important; }
+select { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important; background-repeat: no-repeat !important; background-position: right 12px center !important; padding-right: 32px !important; }
+.two input, .three input, .two select, .three select { width: 100% !important; box-sizing: border-box; min-height: 44px !important; }
+th { background: rgba(24, 24, 27, 0.8) !important; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+button { border-radius: 8px !important; transition: all 0.2s; }
+button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+.confirm, .simple-summary { background: rgba(16, 185, 129, 0.05) !important; border-color: rgba(16, 185, 129, 0.2) !important; border-radius: 12px !important; }
+.result { background: rgba(24, 24, 27, 0.4) !important; border-color: rgba(39, 39, 42, 0.8) !important; border-radius: 12px !important; }
+.nav a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 0.05em; }
+.nav a:hover, .nav a[aria-current="page"] { color: var(--fg); text-shadow: 0 0 12px rgba(255,255,255,0.3); }
 </style></head><body>
-<header><div class="top"><div class="brand">AGENTTRADE</div><nav class="nav" aria-label="Main navigation"><a href="/" aria-current="page">Research</a><a href="/portfolio">Portfolio</a></nav><span class="chip">Paper environment</span></div></header>
+<header><div class="top"><div class="brand" style="background: linear-gradient(90deg, #0e584f, #155f51); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">AGENTTRADE</div><nav class="nav" aria-label="Main navigation"><a href="/" aria-current="page">Research</a><a href="/portfolio">Portfolio</a><a href="/architecture">Architecture</a><a href="/evaluation">AD23731 Evaluation</a></nav><span class="chip">Paper environment</span></div></header>
 <main><div class="eyebrow">Local research desk / v1.5</div><h1>Evidence before execution.</h1><p class="intro">Research any US-listed equity with a bounded agent workflow. Live evidence cards are built for each symbol from public price data, key stats and available headlines. Sources, critique and risk checks stay visible. Paper orders are placed only when you approve a proposal below.</p>
+<!-- TradingView Widget BEGIN -->
+<div class="tradingview-widget-container" id="tv-widget-container" style="margin-bottom: 24px; border-radius: 12px; overflow: hidden; border: 1px solid rgba(39, 39, 42, 0.8); height: 400px;">
+  <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
+  <script>
+    (function() {
+      const script = document.createElement('script');
+      script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+      script.async = true;
+      script.innerHTML = JSON.stringify({
+        "autosize": true,
+        "symbol": "NASDAQ:AAPL",
+        "interval": "D",
+        "timezone": "Etc/UTC",
+        "theme": "dark",
+        "style": "1",
+        "locale": "en",
+        "allow_symbol_change": true,
+        "calendar": false,
+        "support_host": "https://www.tradingview.com"
+      });
+      document.getElementById('tv-widget-container').appendChild(script);
+    })();
+  </script>
+</div>
+<!-- TradingView Widget END -->
 <div class="layout"><section class="panel"><h2>Start a research run</h2><small>Runs locally through n8n and Ollama. No order is placed by this form.</small><form id="research"><label for="question">Your question</label><textarea id="question" required minlength="5" placeholder="Ask about any US stock - e.g. Is TSLA a good buy right now?"></textarea><label for="mode">Retrieval</label><select id="mode"><option value="agentic">Agent-chosen evidence</option><option value="fixed">Fixed top-3 evidence</option><option value="none">No evidence baseline</option></select><button id="run" type="submit">Run analysis</button></form><div class="confirm" id="confirm" role="status" aria-live="polite" hidden></div><div class="result" id="result" role="status" aria-live="polite">No analysis yet.</div></section>
 <aside class="panel"><h2>How this works</h2><ol class="steps"><li><strong>Retrieve</strong><span>Searches the dated evidence cards in Qdrant.</span></li><li><strong>Analyze</strong><span>Uses local Ollama to interpret the evidence and market snapshot.</span></li><li><strong>Debate and judge</strong><span>Bull and bear cases test the evidence. A critic judges them before one correction.</span></li><li><strong>Approve</strong><span>Only your click on a proposal below can submit a paper order to Alpaca.</span></li></ol><div class="note">Educational use only. Frozen classroom cards remain for the benchmark; live ticker evidence is added separately. Yahoo Finance data may be delayed and headlines may be missing. No live brokerage orders are supported.</div></aside></div>
-<section class="panel"><h2>New trade proposal</h2><small>Checks paper holdings or buying power before creating a pending proposal when Alpaca keys are configured. A proposal is not an order.</small><form id="proposal"><div class="three"><div><label for="pticker">Symbol</label><input type="text" id="pticker" maxlength="12" placeholder="e.g. TSLA" autocomplete="off" spellcheck="false" style="text-transform:uppercase"></div><div><label for="pside">Side</label><select id="pside"><option>BUY</option><option>SELL</option></select></div><div><label for="pqty">Quantity</label><input type="number" id="pqty" min="1" max="5" value="1" required></div></div><label for="prationale">Rationale</label><textarea id="prationale" required minlength="10" placeholder="Why this simulated trade? Reference the research and risk limits."></textarea><button id="propose" type="submit">Create proposal</button><div class="msg" id="pmsg" role="status" aria-live="polite"></div></form></section>
-<section class="panel"><h2>Pending approval</h2><small>Your click is the human gate. Approving submits a market order to your Alpaca <strong>paper</strong> account; rejecting closes the proposal. Proposals expire 30 minutes after creation.</small><div class="code-row"><label for="code">Approval code</label><input type="text" id="code" readonly title="Read from the local .env by the server"></div><div id="pending"><div class="empty">Loading proposals.</div></div><div class="msg" id="amsg" role="status" aria-live="polite"></div></section>
+<section class="panel"><h2>New trade proposal</h2><small>Checks paper holdings or buying power before creating a pending proposal when Alpaca keys are configured. A proposal is not an order.</small><div id="login-section"><form id="login-form"><label for="login-password">Enter secret Approval Code to unlock trading</label><input type="password" id="login-password" required placeholder="Secret password..."><button type="submit" style="margin-top: 12px;">Login</button><div class="msg" id="login-msg" role="status" aria-live="polite"></div></form></div><form id="proposal" style="display: none;"><div class="three"><div><label for="pticker">Symbol</label><input type="text" id="pticker" maxlength="12" placeholder="e.g. TSLA" autocomplete="off" spellcheck="false" style="text-transform:uppercase"></div><div><label for="pside">Side</label><select id="pside"><option>BUY</option><option>SELL</option></select></div><div><label for="pqty">Quantity</label><input type="number" id="pqty" min="1" max="5" value="1" required></div></div><label for="prationale">Rationale</label><textarea id="prationale" required minlength="10" placeholder="Why this simulated trade? Reference the research and risk limits."></textarea><button id="propose" type="submit">Create proposal</button><div class="msg" id="pmsg" role="status" aria-live="polite"></div></form></section>
+<section class="panel"><h2>Pending approval</h2><small>Your click is the human gate. Approving submits a market order to your Alpaca <strong>paper</strong> account; rejecting closes the proposal. Proposals expire 30 minutes after creation.</small><div class="code-row" style="display: none;"><label for="code">Approval code</label><input type="password" id="code" title="Enter your secret approval code from .env"></div><div id="pending"><div class="empty">Loading proposals.</div></div><div class="msg" id="amsg" role="status" aria-live="polite"></div></section>
 <section class="panel"><h2>Ledger</h2><small>Recent proposals and submitted paper orders. Fills and final status belong to your Alpaca paper dashboard.</small><h3>Proposals</h3><div id="proposals"><div class="empty">Loading.</div></div><h3>Paper orders</h3><div id="trades"><div class="empty">Loading.</div></div></section>
 <p class="footer">Local endpoints: dashboard <code>localhost:8000</code> · n8n <code>localhost:5678</code> · View broker positions and order status on the <a href="/portfolio">portfolio page</a>.</p></main>
 <script>
@@ -36,6 +79,7 @@ document.getElementById('pending').innerHTML=pend.length?'<div class="tablewrap"
 document.getElementById('proposals').innerHTML=proposals.length?'<div class="tablewrap"><table><tr><th>ID</th><th>Order</th><th>Status</th><th>Created</th></tr>'+proposals.map(p=>'<tr><td><code>'+esc(p.id)+'</code></td><td>'+esc(p.side)+' '+p.qty+' '+esc(p.ticker)+' @ $'+Number(p.price).toFixed(2)+'</td><td><span class="status '+esc(p.status)+'">'+esc(p.status.replace(/_/g,' '))+'</span></td><td>'+esc(fmtTime(p.created))+'</td></tr>').join('')+'</table></div>':'<div class="empty">No proposals yet.</div>';
 document.getElementById('trades').innerHTML=trades.length?'<div class="tablewrap"><table><tr><th>Proposal</th><th>Order</th><th>Alpaca order</th><th>Submitted</th></tr>'+trades.map(t=>'<tr><td><code>'+esc(t.proposal_id)+'</code></td><td>'+esc(t.side)+' '+t.qty+' '+esc(t.ticker)+' @ $'+Number(t.price).toFixed(2)+'</td><td><code>'+esc(t.alpaca_order_id||'')+'</code></td><td>'+esc(fmtTime(t.created))+'</td></tr>').join('')+'</table>':'<div class="empty">No paper orders submitted.</div>'}
 async function decide(id,decision,btn){const msg=document.getElementById('amsg');msg.className='msg';msg.textContent='';const row=btn.closest('.actions');row.querySelectorAll('button').forEach(b=>b.disabled=true);try{const d=await req('/approval',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({proposal_id:id,decision:decision,approval_code:codeInput.value})});msg.className='msg ok';msg.textContent=decision==='approve'?('Submitted to Alpaca paper. Order ID: '+(d.alpaca_order_id||'unknown')+'. Confirm fill in the Alpaca dashboard.'):'Proposal rejected.'}catch(e){msg.className='msg err';msg.textContent=e.message;row.querySelectorAll('button').forEach(b=>b.disabled=false)}refresh()}
+document.getElementById('login-form').addEventListener('submit',async e=>{e.preventDefault();const msg=document.getElementById('login-msg'),btn=e.target.querySelector('button');btn.disabled=true;msg.className='msg';msg.textContent='Verifying...';try{const r=await req('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('login-password').value})});document.getElementById('login-section').style.display='none';document.getElementById('proposal').style.display='block';codeInput.value=document.getElementById('login-password').value}catch(err){msg.className='msg err';msg.textContent='Invalid code.'}finally{btn.disabled=false}});
 document.getElementById('proposal').addEventListener('submit',async e=>{e.preventDefault();const b=document.getElementById('propose'),msg=document.getElementById('pmsg');b.disabled=true;msg.className='msg';msg.textContent='';const sym=readSymbol('pticker');if(!SYMBOL_RE.test(sym)){msg.className='msg err';msg.textContent='Enter a valid US-listed symbol: start with a letter; letters, digits, dots or hyphens only, up to 10 characters.';b.disabled=false;return}msg.textContent='Checking price and paper account before creating proposal.';try{const d=await req('/proposal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticker:sym,side:document.getElementById('pside').value,quantity:Number(document.getElementById('pqty').value),rationale:document.getElementById('prationale').value})});msg.className='msg ok';msg.textContent='Proposal '+d.proposal_id+' created at $'+Number(d.reference_price).toFixed(2)+'. Approve or reject it below within '+d.expires_minutes+' minutes.';document.getElementById('prationale').value=''}catch(err){msg.className='msg err';msg.textContent=err.message}finally{b.disabled=false}refresh()});
 let checkedStock=null, checkedQuestion='', researchBusy=false;
 const researchForm=document.getElementById('research'), confirmation=document.getElementById('confirm'), result=document.getElementById('result');
@@ -65,10 +109,146 @@ function showFallback(message){
   row.append(label,input,button);confirmation.append(note,row)
 }
 researchForm.addEventListener('submit',e=>{e.preventDefault();const question=document.getElementById('question').value.trim();if(question.length<5){result.textContent='Enter a research question with at least five characters.';return}checkStock(question)});
-async function runResearch(){
-  const question=document.getElementById('question').value.trim();if(!checkedStock||question!==checkedQuestion){resetStock();result.textContent='Question changed. Run analysis again.';return}
-  const stock=checkedStock, button=document.getElementById('run');confirmation.hidden=true;button.disabled=true;button.textContent='Research running...';result.replaceChildren();const indicator=document.createElement('div');indicator.className='detected-ticker';indicator.textContent='Analyzing: '+stock.company_name+' ('+stock.ticker+')';const progress=document.createElement('p');progress.textContent='Running local research. First response may take a few minutes while the model loads.';result.append(indicator,progress);document.getElementById('question').disabled=true;document.getElementById('mode').disabled=true;
-  try{const data=await req('/research',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:question,ticker:stock.ticker,mode:document.getElementById('mode').value,evaluation:false})});if(data.simple_summary&&data.technical_detail){result.textContent='';const detected=document.createElement('div');detected.className='detected-ticker';detected.textContent='Analyzing: '+stock.company_name+' ('+stock.ticker+')';result.append(detected);const simple=document.createElement('section');simple.className='simple-summary';const simpleHeading=document.createElement('h3');simpleHeading.textContent='Simple summary';const simpleText=document.createElement('p');simpleText.textContent=data.simple_summary;simple.append(simpleHeading,simpleText);const detail=document.createElement('section');detail.className='technical-details';const detailHeading=document.createElement('h3');detailHeading.textContent='Technical details';const detailText=document.createElement('div');detailText.textContent=data.technical_detail;detail.append(detailHeading,detailText);result.append(simple,detail);if(data.evidence_coverage){const coverage=document.createElement('div');coverage.className='coverage';coverage.textContent='Evidence coverage: '+JSON.stringify(data.evidence_coverage);result.append(coverage)}}else{result.textContent='Research response is missing the simple summary. Re-import and publish the updated n8n workflow before retrying.'}}catch(err){result.textContent=err.message}finally{document.getElementById('question').disabled=false;document.getElementById('mode').disabled=false;checkedStock=null;checkedQuestion=''}
+function highlightDecisions(text){return marked.parse(text).replace(/\b(BUY)\b/g,'<span style="color: #22c55e; font-weight: bold; background: rgba(34,197,94,0.1); padding: 2px 6px; border-radius: 4px;">BUY</span>').replace(/\b(SELL)\b/g,'<span style="color: #ef4444; font-weight: bold; background: rgba(239,68,68,0.1); padding: 2px 6px; border-radius: 4px;">SELL</span>').replace(/\b(HOLD)\b/g,'<span style="color: #f59e0b; font-weight: bold; background: rgba(245,158,11,0.1); padding: 2px 6px; border-radius: 4px;">HOLD</span>')}
+async function runResearch() {
+  const question = document.getElementById('question').value.trim();
+  if (!checkedStock || question !== checkedQuestion) {
+    resetStock();
+    result.textContent = 'Question changed. Run analysis again.';
+    return;
+  }
+  const stock = checkedStock;
+  const button = document.getElementById('run');
+  confirmation.hidden = true;
+  button.disabled = true;
+  button.textContent = 'Research running...';
+  result.replaceChildren();
+
+  const indicator = document.createElement('div');
+  indicator.className = 'detected-ticker';
+  indicator.textContent = 'Analyzing: ' + stock.company_name + ' (' + stock.ticker + ')';
+
+  const progress = document.createElement('p');
+  progress.className = 'loading-animation';
+  progress.style.lineHeight = '1.8';
+  progress.innerHTML = 'Running multi-agent research...<br><br><span style="color: #6b7280;">Starting agents...</span>';
+  result.append(indicator, progress);
+
+  document.getElementById('question').disabled = true;
+  document.getElementById('mode').disabled = true;
+
+  const agents = ['Retrieval', 'Analyst', 'Bull', 'Bear', 'Critic', 'Finalizer'];
+  
+  // Create a container for the agent pills
+  const agentContainer = document.createElement('div');
+  agentContainer.style.display = 'flex';
+  agentContainer.style.flexWrap = 'wrap';
+  agentContainer.style.gap = '8px';
+  agentContainer.style.marginTop = '15px';
+  agentContainer.style.marginBottom = '15px';
+  
+  // Create pill elements
+  const pills = agents.map(agentName => {
+    const pill = document.createElement('div');
+    pill.textContent = agentName;
+    pill.style.padding = '6px 12px';
+    pill.style.borderRadius = '20px';
+    pill.style.fontSize = '0.9em';
+    pill.style.fontWeight = '500';
+    pill.style.transition = 'all 0.3s ease';
+    pill.style.backgroundColor = '#f3f4f6'; // default gray
+    pill.style.color = '#6b7280';
+    agentContainer.append(pill);
+    return pill;
+  });
+  
+  progress.innerHTML = 'Running multi-agent research...';
+  result.append(indicator, progress, agentContainer);
+
+  let agentIdx = 0;
+  const animInterval = setInterval(() => {
+    if (agentIdx < agents.length) {
+      // Update previous agent to green (completed)
+      if (agentIdx > 0) {
+        pills[agentIdx - 1].style.backgroundColor = '#dcfce7'; // green-100
+        pills[agentIdx - 1].style.color = '#166534'; // green-800
+        pills[agentIdx - 1].innerHTML = agents[agentIdx - 1] + ' <span style="margin-left: 4px;">✓</span>';
+        pills[agentIdx - 1].style.boxShadow = 'none';
+      }
+      
+      // Update current agent to blue (active)
+      pills[agentIdx].style.backgroundColor = '#dbeafe'; // blue-100
+      pills[agentIdx].style.color = '#1e40af'; // blue-800
+      pills[agentIdx].innerHTML = agents[agentIdx] + ' <span style="margin-left: 4px;">⏳</span>';
+      pills[agentIdx].style.boxShadow = '0 0 0 2px #bfdbfe'; // subtle blue ring
+      
+      agentIdx++;
+    } else {
+      // Mark Finalizer as completed
+      pills[agents.length - 1].style.backgroundColor = '#dcfce7';
+      pills[agents.length - 1].style.color = '#166534';
+      pills[agents.length - 1].innerHTML = agents[agents.length - 1] + ' <span style="margin-left: 4px;">✓</span>';
+      pills[agents.length - 1].style.boxShadow = 'none';
+      
+      progress.innerHTML = 'Consolidating results... <span style="color: #f59e0b;">⏳</span>';
+      clearInterval(animInterval);
+    }
+  }, 2000);
+
+  try {
+    const data = await req('/research', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: question, ticker: stock.ticker, mode: document.getElementById('mode').value, evaluation: false })
+    });
+    clearInterval(animInterval);
+
+    if (data.simple_summary && data.technical_detail) {
+      result.textContent = '';
+      const detected = document.createElement('div');
+      detected.className = 'detected-ticker';
+      detected.textContent = 'Analyzing: ' + stock.company_name + ' (' + stock.ticker + ')';
+      result.append(detected);
+
+      const simple = document.createElement('section');
+      simple.className = 'simple-summary';
+      const simpleHeading = document.createElement('h3');
+      simpleHeading.textContent = 'Simple summary';
+      const simpleText = document.createElement('p');
+      simpleText.innerHTML = highlightDecisions(data.simple_summary);
+      simple.append(simpleHeading, simpleText);
+
+      const detail = document.createElement('section');
+      detail.className = 'technical-details';
+      const detailHeading = document.createElement('h3');
+      detailHeading.textContent = 'Technical details';
+      const detailText = document.createElement('div');
+      detailText.innerHTML = highlightDecisions(data.technical_detail);
+      detail.append(detailHeading, detailText);
+
+      result.append(simple, detail);
+
+      if (data.evidence_coverage) {
+        const coverage = document.createElement('div');
+        coverage.className = 'coverage';
+        coverage.style.marginTop = '15px';
+        coverage.style.fontSize = '0.85em';
+        coverage.style.color = '#6b7280';
+        coverage.textContent = 'Evidence coverage: ' + JSON.stringify(data.evidence_coverage);
+        result.append(coverage);
+      }
+    } else {
+      result.textContent = 'Research response is missing the simple summary. Re-import and publish the updated n8n workflow before retrying.';
+    }
+  } catch (err) {
+    clearInterval(animInterval);
+    result.textContent = err.message;
+  } finally {
+    document.getElementById('question').disabled = false;
+    document.getElementById('mode').disabled = false;
+    checkedStock = null;
+    checkedQuestion = '';
+  }
 }
 refresh();
 </script></body></html>
