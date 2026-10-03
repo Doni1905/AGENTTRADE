@@ -25,22 +25,29 @@ button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16, 185,
 <main><div class="heading"><div><div class="eyebrow">Alpaca paper / account view</div><h1>Paper portfolio</h1><p class="intro">Broker-reported account values, open positions and recent orders. No live trading.</p></div><button type="button" id="refresh">Refresh portfolio</button></div>
 <!-- TradingView Widget BEGIN -->
 <div class="tradingview-widget-container" style="margin-bottom: 24px; border-radius: 12px; overflow: hidden; border: 1px solid rgba(39, 39, 42, 0.8);">
-  <div class="tradingview-widget-container__widget"></div>
-  <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
-  {
-  "symbols": [
-    { "proName": "FOREXCOM:SPXUSD", "title": "S&P 500 Index" },
-    { "proName": "FOREXCOM:NSXUSD", "title": "US 100 Cash Indices" },
-    { "description": "Apple", "proName": "NASDAQ:AAPL" },
-    { "description": "Tesla", "proName": "NASDAQ:TSLA" },
-    { "description": "Nvidia", "proName": "NASDAQ:NVDA" }
-  ],
-  "showSymbolLogo": true,
-  "isTransparent": false,
-  "displayMode": "adaptive",
-  "colorTheme": "dark",
-  "locale": "en"
-}
+  <div class="tradingview-widget-container__widget" id="tv-ticker-tape"></div>
+  <script>
+    (function() {
+      const script = document.createElement('script');
+      script.type = 'text/javascript';
+      script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js';
+      script.async = true;
+      script.innerHTML = JSON.stringify({
+        "symbols": [
+          { "proName": "FOREXCOM:SPXUSD", "title": "S&P 500 Index" },
+          { "proName": "FOREXCOM:NSXUSD", "title": "US 100 Cash Indices" },
+          { "description": "Apple", "proName": "NASDAQ:AAPL" },
+          { "description": "Tesla", "proName": "NASDAQ:TSLA" },
+          { "description": "Nvidia", "proName": "NASDAQ:NVDA" }
+        ],
+        "showSymbolLogo": true,
+        "isTransparent": false,
+        "displayMode": "adaptive",
+        "colorTheme": "dark",
+        "locale": "en"
+      });
+      document.getElementById('tv-ticker-tape').appendChild(script);
+    })();
   </script>
 </div>
 <!-- TradingView Widget END -->
