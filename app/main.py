@@ -658,7 +658,7 @@ def research(p:AnalysisInput):
             result=r.json()
             if not isinstance(result, dict) or not isinstance(result.get("answer"),str):
                 raise HTTPException(502,"Research returned an unexpected answer. Check the n8n workflow output.")
-            match=re.search(r"(?:\*\*|#+)?\s*Simple summary\s*:?(?:\*\*)?\s*(.+?)\n+\s*(?:\*\*|#+)?\s*Technical details\s*:?(?:\*\*)?\s*(.+)\s*",result["answer"],re.I|re.S)
+            match=re.search(r"(?:\*\*|#+)?\s*Simple summary\s*:?(?:\*\*)?\s*(.+?)\n+\s*(?:\*\*|#+)?\s*Technical[^\n:]*:?(?:\*\*)?\s*(.+)\s*",result["answer"],re.I|re.S)
             if not match or not match.group(1).strip() or not match.group(2).strip():
                 logger.warning("Research answer missing expected format. RAW_ANSWER: %r", result.get("answer"))
                 summary = "Analysis Complete"
