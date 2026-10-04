@@ -30,6 +30,22 @@ button.ghost:hover { background: rgba(63, 63, 70, 0.4) !important; box-shadow: n
 dialog::backdrop { background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
 .nav a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 0.05em; }
 .nav a:hover, .nav a[aria-current="page"] { color: var(--fg); text-shadow: 0 0 12px rgba(255,255,255,0.3); }
+</style>
+<style>
+.pick{border:1px solid rgba(16,185,129,.35);background:linear-gradient(180deg,rgba(16,185,129,.10),rgba(16,185,129,.03));border-radius:14px;padding:22px;margin-top:4px}
+.pick .kicker{font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.pick .sym{font-size:2.4rem;font-weight:800;letter-spacing:-.02em;line-height:1.1;margin:6px 0 2px}
+.pick .co{color:var(--muted);font-size:.95rem}
+.pick .stats{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.pick .stat{border:1px solid rgba(63,63,70,.8);border-radius:8px;padding:6px 10px;font-size:.82rem;color:var(--muted)}
+.pick .stat b{color:var(--ink);font-weight:600}
+.pick p{line-height:1.55;margin:10px 0}
+.pick.weak{border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.05)}
+.backups{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
+.backup{border:1px solid rgba(63,63,70,.8);border-radius:12px;padding:14px}
+.backup .sym{font-size:1.2rem;font-weight:700}
+.backup p{font-size:.88rem;color:var(--muted);line-height:1.45;margin:8px 0}
+.disc-note{font-size:.8rem;color:#6b7280;margin-top:14px;line-height:1.45}
 </style></head><body>
 <header><div class="top"><div class="brand" style="background: linear-gradient(90deg, #0e584f, #155f51); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">AGENTTRADE</div><nav class="nav" aria-label="Main navigation"><a href="/" aria-current="page">Research</a><a href="/portfolio">Portfolio</a><a href="/architecture">Architecture</a><a href="/evaluation">AD23731 Evaluation</a></nav><div style="display:flex;align-items:center;gap:12px;"><span class="chip">Paper environment</span><button id="logout-btn" style="display:none; padding: 4px 10px; font-size: 11px; margin: 0;" class="ghost">Logout</button></div></div></header>
 <main><div class="eyebrow">Local research desk / v1.5</div><h1>Evidence before execution.</h1><p class="intro">Research any US-listed equity with a bounded agent workflow. Live evidence cards are built for each symbol from public price data, key stats and available headlines. Sources, critique and risk checks stay visible. Paper orders are placed only when you approve a proposal below.</p>
@@ -58,7 +74,7 @@ dialog::backdrop { background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
   </script>
 </div>
 <!-- TradingView Widget END -->
-<div class="layout"><section class="panel"><h2>Start a research run</h2><small>Runs locally through n8n and Ollama. No order is placed by this form.</small><form id="research"><label for="question">Your question</label><textarea id="question" required minlength="5" placeholder="Ask about any US stock - e.g. Is TSLA a good buy right now?"></textarea><label for="mode">Retrieval</label><select id="mode"><option value="agentic">Agent-chosen evidence</option><option value="fixed">Fixed top-3 evidence</option><option value="none">No evidence baseline</option></select><button id="run" type="submit">Run analysis</button></form><div class="confirm" id="confirm" role="status" aria-live="polite" hidden></div><div class="result" id="result" role="status" aria-live="polite">No analysis yet.</div></section>
+<div class="layout"><section class="panel"><h2>Start a research run</h2><small>Runs locally through n8n and Ollama. No order is placed by this form.</small><form id="research"><label for="question">Your question</label><textarea id="question" required minlength="5" placeholder="Ask about a stock (Is TSLA a good buy right now?) or ask open-ended (What is the best stock to buy now?)"></textarea><label for="mode">Retrieval</label><select id="mode"><option value="agentic">Agent-chosen evidence</option><option value="fixed">Fixed top-3 evidence</option><option value="none">No evidence baseline</option></select><button id="run" type="submit">Run analysis</button></form><div class="confirm" id="confirm" role="status" aria-live="polite" hidden></div><div class="result" id="result" role="status" aria-live="polite">No analysis yet.</div></section>
 <aside class="panel"><h2>How this works</h2><ol class="steps"><li><strong>Retrieve</strong><span>Searches the dated evidence cards in Qdrant.</span></li><li><strong>Analyze</strong><span>Uses local Ollama to interpret the evidence and market snapshot.</span></li><li><strong>Debate and judge</strong><span>Bull and bear cases test the evidence. A critic judges them before one correction.</span></li><li><strong>Approve</strong><span>Only your click on a proposal below can submit a paper order to Alpaca.</span></li></ol><div class="note">Educational use only. Frozen classroom cards remain for the benchmark; live ticker evidence is added separately. Yahoo Finance data may be delayed and headlines may be missing. No live brokerage orders are supported.</div></aside></div>
 <section class="panel"><h2>New trade proposal</h2><small>Checks paper holdings or buying power before creating a pending proposal when Alpaca keys are configured. A proposal is not an order.</small><dialog id="login-modal" style="background: rgba(24, 24, 27, 0.95); border: 1px solid rgba(39, 39, 42, 0.8); border-radius: 12px; color: #fafafa; padding: 24px; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);"><form id="login-form"><h3 style="margin-top:0">Authentication Required</h3><label for="login-username">Username</label><input type="text" id="login-username" required placeholder="Username"><label for="login-password">Password</label><input type="password" id="login-password" required placeholder="Password"><div style="display:flex;gap:12px;margin-top:16px;"><button type="button" class="ghost" onclick="document.getElementById('login-modal').close()">Cancel</button><button type="submit">Login</button><button type="button" class="ghost" id="btn-register">Register</button></div><div class="msg" id="login-msg" role="status" aria-live="polite"></div></form></dialog><dialog id="alpaca-modal" style="background: rgba(24, 24, 27, 0.95); border: 1px solid rgba(39, 39, 42, 0.8); border-radius: 12px; color: #fafafa; padding: 24px; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);"><form id="alpaca-form"><h3 style="margin-top:0">Alpaca API Keys</h3><label for="alpaca-key">Key ID</label><input type="text" id="alpaca-key" required placeholder="PK..."><label for="alpaca-secret">Secret Key</label><input type="password" id="alpaca-secret" required placeholder="..."><div style="display:flex;gap:12px;margin-top:16px;"><button type="button" class="ghost" onclick="document.getElementById('alpaca-modal').close(); document.getElementById('propose').click()">Skip</button><button type="submit">Save</button></div><div class="msg" id="alpaca-msg" role="status" aria-live="polite"></div></form></dialog><form id="proposal"><div class="three"><div><label for="pticker">Symbol</label><input type="text" id="pticker" maxlength="12" placeholder="e.g. TSLA" autocomplete="off" spellcheck="false" style="text-transform:uppercase"></div><div><label for="pside">Side</label><select id="pside"><option>BUY</option><option>SELL</option></select></div><div><label for="pqty">Quantity</label><input type="number" id="pqty" min="1" max="5" value="1" required></div></div><label for="prationale">Rationale</label><textarea id="prationale" required minlength="10" placeholder="Why this simulated trade? Reference the research and risk limits."></textarea><button id="propose" type="submit">Create proposal</button><div class="msg" id="pmsg" role="status" aria-live="polite"></div></form></section>
 <section class="panel"><h2>Pending approval</h2><small>Your click is the human gate. Approving submits a market order to your Alpaca <strong>paper</strong> account; rejecting closes the proposal. Proposals expire 30 minutes after creation.</small><div class="code-row" style="display: none;"><input type="hidden" id="username"><input type="password" id="code"></div><div id="pending"><div class="empty">Loading proposals.</div></div><div class="msg" id="amsg" role="status" aria-live="polite"></div></section>
@@ -124,6 +140,7 @@ async function checkStock(question, fallback){
   try{
     const stock=await req('/detect-stock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:question,...(fallback?{ticker:fallback}:{})})});
     if(document.getElementById('question').value.trim()!==question)return;
+    if(stock.discovery){await runDiscovery(question);return}
     checkedStock=stock;checkedQuestion=question;
     await runResearch();
   }catch(err){
@@ -140,6 +157,40 @@ function showFallback(message){
   const input=document.createElement('input');input.type='text';input.id='fallback-ticker';input.placeholder='e.g. TSLA';input.maxLength=10;input.autocomplete='off';
   const button=document.createElement('button');button.type='button';button.textContent='Run analysis';button.addEventListener('click',()=>{const sym=input.value.trim().toUpperCase();if(!SYMBOL_RE.test(sym)){result.textContent='Enter a valid US stock ticker, such as TSLA.';return}checkStock(document.getElementById('question').value.trim(),sym)});
   row.append(label,input,button);confirmation.append(note,row)
+}
+
+function discCard(x,cls,primary){
+  const d=document.createElement('div');d.className=cls;
+  if(primary){const k=document.createElement('div');k.className='kicker';k.textContent=primary;d.append(k)}
+  const sym=document.createElement('div');sym.className='sym';sym.textContent=x.ticker;
+  const co=document.createElement('div');co.className='co';co.textContent=x.name;
+  d.append(sym,co);
+  if(primary){
+    const st=document.createElement('div');st.className='stats';
+    [['Price',money(x.price)],['Judge verdict',x.verdict||'n/a'],['Why it was screened',x.source]].forEach(([a,b])=>{const e=document.createElement('span');e.className='stat';e.append(a+': ');const bb=document.createElement('b');bb.textContent=b;e.append(bb);st.append(e)});
+    d.append(st);
+  }
+  const p=document.createElement('p');p.innerHTML=highlightDecisions(x.why);d.append(p);
+  const b=document.createElement('button');b.type='button';b.className='ghost';b.textContent='Analyze '+x.ticker+' in full';
+  b.addEventListener('click',()=>{const q='Is '+x.ticker+' a good buy right now?';document.getElementById('question').value=q;checkStock(q,x.ticker)});
+  d.append(b);return d;
+}
+async function runDiscovery(question){
+  const button=document.getElementById('run');
+  button.textContent='Screening the market...';
+  result.textContent='No company named, so I am checking today\'s most active US stocks and running each through the research agents. This can take a few minutes.';
+  const data=await req('/discover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:question,mode:document.getElementById('mode').value==='agentic'?'fixed':document.getElementById('mode').value})});
+  result.textContent='';
+  const pick=data.pick;
+  const card=discCard(pick,'pick'+(data.strong_buy?'':' weak'),data.strong_buy?'Best buy now':'No strong buy today - closest candidate');
+  result.append(card);
+  if(data.backups&&data.backups.length){
+    const h=document.createElement('h3');h.textContent='Backup picks';h.style.marginTop='20px';result.append(h);
+    const g=document.createElement('div');g.className='backups';data.backups.forEach(b=>g.append(discCard(b,'backup')));result.append(g);
+  }
+  const n=document.createElement('div');n.className='disc-note';
+  n.textContent='Screened '+data.screened_count+' stocks from '+data.source+'. '+(data.skipped.length?data.skipped.length+' could not be analyzed. ':'')+data.note;
+  result.append(n);
 }
 researchForm.addEventListener('submit',e=>{e.preventDefault();const question=document.getElementById('question').value.trim();if(question.length<5){result.textContent='Enter a research question with at least five characters.';return}checkStock(question)});
 function highlightDecisions(text){return marked.parse(text).replace(/\b(BUY)\b/g,'<span style="color: #22c55e; font-weight: bold; background: rgba(34,197,94,0.1); padding: 2px 6px; border-radius: 4px;">BUY</span>').replace(/\b(SELL)\b/g,'<span style="color: #ef4444; font-weight: bold; background: rgba(239,68,68,0.1); padding: 2px 6px; border-radius: 4px;">SELL</span>').replace(/\b(HOLD)\b/g,'<span style="color: #f59e0b; font-weight: bold; background: rgba(245,158,11,0.1); padding: 2px 6px; border-radius: 4px;">HOLD</span>')}
