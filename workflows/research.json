@@ -11,6 +11,7 @@
         0,
         100
       ],
+      "webhookId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
       "parameters": {
         "httpMethod": "POST",
         "path": "agenttrade-analyze",
@@ -30,7 +31,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:8000/prepare",
+        "url": "http://127.0.0.1:8000/prepare",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.body) }}",
@@ -104,7 +105,7 @@
         "promptType": "define",
         "text": "={{ \"Original question: \" + $(\"Validate and prepare evidence\").item.json.question + \"\\nMarket snapshot: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.snapshot) + \"\\nEvidence: \" + $(\"Normalize retrieval\").item.json.output + \"\\nInitial analysis: \" + $(\"2 Analyst agent\").item.json.output + \"\\nCritique: \" + $json.output  + \"\\nEvidence warning: \" + $(\"Validate and prepare evidence\").item.json.warning + \"\\nCoverage: \" + JSON.stringify($(\"Validate and prepare evidence\").item.json.evidence_coverage) + \"\\nUser owns stock: \" + $(\"Validate and prepare evidence\").item.json.user_owns_stock }}",
         "options": {
-          "systemMessage": "Produce the final corrected answer in exactly one pass. Keep supported evidence and [doc N] citations. CRITICAL: Do not invent or assume the current year. Always use exact as-of dates. Never claim an order was placed. Address the exact user question. CRITICAL INSTRUCTION: You MUST output your response in EXACTLY the following structure, with no exceptions:\n\nSimple summary:\n<Extremely short, 1-2 sentences in simple, everyday language for a normal person without finance background. Directly answer the question asked.>\n\nTechnical details:\nDecision: [BUY, SELL, or HOLD. You MUST output exactly one of these three decisions based on your analysis of the stock, even if the user didn't explicitly ask for a trading recommendation.]\n<evidence, dates, citations>\nExplain any technical terms in plain words."
+          "systemMessage": "Produce the final corrected answer in exactly one pass. Keep supported evidence and [doc N] citations. CRITICAL: Do not invent or assume the current year. Always use exact as-of dates. Never claim an order was placed. Address the exact user question.\nCRITICAL INSTRUCTION: You MUST output your response in EXACTLY the following structure, with no exceptions:\n\nSimple summary:\n<Extremely short, 1-2 sentences in simple, everyday language. Directly answer the question asked. If the user asks for the best stock to buy, explicitly name the ticker you recommend here.>\n\nTechnical details:\nDecision: [BUY, SELL, or HOLD. You MUST output exactly one of these three decisions. If you are recommending a stock from a general question, output BUY.]\n<evidence, dates, citations>\nExplain any technical terms in plain words."
         }
       }
     },
@@ -728,7 +729,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "active": false,
+  "active": true,
   "pinData": {},
   "tags": []
 }
