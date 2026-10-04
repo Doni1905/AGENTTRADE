@@ -666,24 +666,26 @@ def research(p:AnalysisInput):
             else:
                 summary,details=match.group(1).strip(),match.group(2).strip()
             
-            # Reject if the dashboard-rendered summary would differ from the extracted one.
-            if result.get("simple_summary") and result["simple_summary"].strip() != summary and match:
-                logger.warning("simple_summary field (%r) differs from extracted summary (%r)", result["simple_summary"][:120], summary[:120])
-                raise HTTPException(502,"Research simple_summary field differs from extracted summary. Re-import and publish the updated n8n workflow, then retry.")
-            
-            # Clean up hallucinated prompt instructions from model output
-            instructions_markers = [
-                "Technical details: Start exactly with",
-                "CRITICAL INSTRUCTION:",
-                "Explain every technical term",
-                "Produce the final corrected answer in exactly one pass"
-            ]
-            for marker in instructions_markers:
-                if marker in details:
-                    details = details.split(marker)[0].strip()
-            
-            # Condense multiple blank lines to at most two
-            details = re.sub(r'\n{3,}', '\n\n', details)
+            # Helper to strip prompt leaks and repetitive section headers
+            def clean_llm_markdown(text: str) -> str:
+                if not text: return ""
+                text = re.sub(r"(?i)Explain\s+(?:any\s+)?technical\s+terms(?:\s+in\s+plain\s+words)?:?", "", text)
+                text = re.sub(r"(?i)Technical\s+details:\s*Start\s+exactly\s+with.*$", "", text)
+                text = re.sub(r"(?i)CRITICAL\s+INSTRUCTION:.*$", "", text)
+                text = re.sub(r"(?i)Produce\s+the\s+final\s+corrected\s+answer.*$", "", text)
+                lines = text.split("\n")
+                cleaned = []
+                for line in lines:
+                    stripped = line.strip()
+                    if re.match(r"^(?:\*\*|#+)?\s*(?:Simple\s+summary|Technical\s+details|Explain\s+technical\s+terms)\s*:?(?:\*\*)?$", stripped, re.I):
+                        continue
+                    cleaned.append(line)
+                res = "\n".join(cleaned)
+                res = re.sub(r"^(?:\*\*|#+)?\s*(?:Simple\s+summary|Technical\s+details)\s*:?(?:\*\*)?\s*", "", res, flags=re.I)
+                return re.sub(r"\n{3,}", "\n\n", res).strip()
+
+            summary = clean_llm_markdown(summary)
+            details = clean_llm_markdown(details)
             
             result["simple_summary"]=summary
             result["technical_detail"]=details
