@@ -1,98 +1,540 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AGENTTRADE | Paper portfolio</title>
-<style>
-:root{color-scheme:light;--ink:#172630;--muted:#5b6c76;--line:#d6dddf;--paper:#f7f8f6;--accent:#0e584f;--danger:#8f2d2d}
-*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-header{background:#fff;border-bottom:1px solid var(--line)}.top{max-width:1160px;margin:auto;padding:19px 30px;display:flex;align-items:center;justify-content:space-between;gap:24px}.brand{font-size:16px;font-weight:760;letter-spacing:.095em}.nav{display:flex;align-items:center;gap:20px}.nav a{font-size:13px;text-decoration:none;color:var(--muted);font-weight:650}.nav a[aria-current=page]{color:var(--accent);border-bottom:2px solid var(--accent);padding-bottom:3px}.nav a:hover{text-decoration:underline}.chip{border:1px solid #bbd9d3;color:#155f51;background:#f2faf7;border-radius:3px;padding:5px 10px;font-size:11px;letter-spacing:.1em;font-weight:700;text-transform:uppercase}
-main{max-width:1160px;margin:auto;padding:48px 30px 80px}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.16em;font-weight:740;color:var(--accent)}h1{font-size:clamp(32px,4vw,46px);letter-spacing:-.045em;line-height:1.1;margin:12px 0 10px}.intro{color:var(--muted);max-width:630px;margin:0}.heading{display:flex;align-items:end;justify-content:space-between;gap:20px;margin-bottom:32px}button{font:inherit;font-size:13px;font-weight:700;border:1px solid var(--accent);border-radius:3px;background:var(--accent);color:#fff;cursor:pointer;padding:11px 17px;white-space:nowrap}button:disabled{opacity:.6;cursor:wait}button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.section{background:#fff;border:1px solid var(--line);margin-top:18px;padding:27px;min-width:0}.section h2{font-size:18px;letter-spacing:-.02em;margin:0 0 6px}.sub{color:var(--muted);font-size:12px;margin:0 0 21px}.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.metric{background:#fff;border:1px solid var(--line);padding:22px;min-width:0}.metric:first-child{border-top:3px solid var(--accent)}.metric span{display:block;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}.metric strong{display:block;font-size:clamp(22px,3vw,31px);letter-spacing:-.035em;margin-top:10px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.chartwrap{border:1px solid var(--line);padding:14px;background:#fff}.chartwrap svg{display:block;width:100%;height:auto}.caption,.foot{font-size:12px;color:var(--muted);margin-top:12px}.empty{color:var(--muted);font-size:13px;padding:18px 0}.error{color:var(--danger);background:#fff;border:1px solid #d9b3b3;padding:18px}.tablewrap{overflow-x:auto;border:1px solid var(--line)}table{border-collapse:collapse;width:100%;min-width:680px;font-size:13px}th{text-align:left;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;background:#f8faf9}th,td{padding:13px 16px;border-bottom:1px solid #e7ebec}tr:last-child td{border-bottom:0}.num{text-align:right;font-variant-numeric:tabular-nums}.positive{color:var(--accent)}.negative{color:var(--danger)}.status{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.04em}.status.filled{color:var(--accent)}.symbol{font-weight:750}.foot{margin-top:30px}a{color:var(--accent)}
-@media(max-width:720px){.top{padding:16px 18px;flex-wrap:wrap;gap:12px}.chip{display:none}main{padding:32px 18px 60px}.heading{align-items:start;flex-wrap:wrap}.heading button{margin-top:0}.metrics{grid-template-columns:1fr}.section{padding:19px}.tablewrap{border:0;overflow:visible}table,tbody,tr,td{display:block;width:100%;min-width:0}thead{display:none}tr{border:1px solid var(--line);margin-bottom:10px;padding:8px 12px}td{display:grid;grid-template-columns:115px minmax(0,1fr);gap:8px;text-align:left!important;padding:8px 0;overflow-wrap:anywhere}td:before{content:attr(data-label);font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:700;color:var(--muted)}td:last-child{border-bottom:0}}
-</style>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AGENTTRADE | Paper Portfolio & Live Broker Analytics</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-:root { --ink: #fafafa; --muted: #a1a1aa; --line: #27272a; --paper: #09090b; --accent: #10b981; --danger: #ef4444; }
-body { font-family: 'Inter', system-ui, sans-serif; background-image: radial-gradient(circle at 50% -20%, rgba(16, 185, 129, 0.15), rgba(9, 9, 11, 1) 40%); min-height: 100vh;}
-header { background: rgba(9, 9, 11, 0.7) !important; backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important; }
-.panel, .section, .metric, .chartwrap, input, textarea, select { background: rgba(24, 24, 27, 0.6) !important; border-color: rgba(39, 39, 42, 0.8) !important; color: #fafafa !important; border-radius: 12px !important; }
-th { background: rgba(24, 24, 27, 0.8) !important; }
-tr:hover td { background: rgba(255,255,255,0.02); }
-button { border-radius: 8px !important; transition: all 0.2s; }
-button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
-.confirm, .simple-summary { background: rgba(16, 185, 129, 0.05) !important; border-color: rgba(16, 185, 129, 0.2) !important; border-radius: 12px !important; }
-.result { background: rgba(24, 24, 27, 0.4) !important; border-color: rgba(39, 39, 42, 0.8) !important; border-radius: 12px !important; }
-.nav a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 0.05em; }
-.nav a:hover, .nav a[aria-current="page"] { color: var(--fg); text-shadow: 0 0 12px rgba(255,255,255,0.3); }
-</style></head><body><header><div class="top"><div class="brand" style="background: linear-gradient(90deg, #10b981, #3b82f6); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">AGENTTRADE</div><nav class="nav" aria-label="Main navigation"><a href="/">Research</a><a href="/portfolio" aria-current="page">Portfolio</a><a href="/architecture">Architecture</a><a href="/evaluation">AD23731 Evaluation</a></nav><div style="display:flex;align-items:center;gap:12px;"><span class="chip">Paper environment</span><button id="logout-btn" style="display:none; padding: 4px 10px; font-size: 11px; margin: 0;" class="ghost">Logout</button></div></div></header>
-<main><div class="heading"><div><div class="eyebrow">Alpaca paper / account view</div><h1>Paper portfolio</h1><p class="intro">Broker-reported account values, open positions and recent orders. No live trading.</p></div><button type="button" id="refresh">Refresh portfolio</button></div>
-<!-- TradingView Widget BEGIN -->
-<div class="tradingview-widget-container" style="margin-bottom: 24px; border-radius: 12px; overflow: hidden; border: 1px solid rgba(39, 39, 42, 0.8); background: rgba(24, 24, 27, 0.6); padding: 4px 8px;">
-  <div class="tradingview-widget-container__widget" id="tv-ticker-tape" style="width: 100%; min-height: 46px;"></div>
-  <script>
-    (function() {
-      const script = document.createElement('script');
-      script.type = 'text/javascript';
-      script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js';
-      script.async = true;
-      script.innerHTML = JSON.stringify({
-        "symbols": [
-          { "proName": "FOREXCOM:SPXUSD", "title": "S&P 500 Index" },
-          { "proName": "FOREXCOM:NSXUSD", "title": "US 100 Cash Indices" },
-          { "description": "Apple", "proName": "NASDAQ:AAPL" },
-          { "description": "Tesla", "proName": "NASDAQ:TSLA" },
-          { "description": "Nvidia", "proName": "NASDAQ:NVDA" }
-        ],
-        "showSymbolLogo": true,
-        "isTransparent": true,
-        "displayMode": "adaptive",
-        "colorTheme": "dark",
-        "locale": "en"
-      });
-      document.getElementById('tv-ticker-tape').appendChild(script);
-    })();
-  </script>
-</div>
-<!-- TradingView Widget END -->
-<div id="notice" role="status" aria-live="polite"></div><div id="content" aria-live="polite"><div class="empty">Loading paper account...</div></div><p class="foot">Paper account only. Quotes and broker history may be delayed. This local page has no login; do not expose it publicly. Research and proposals are on the <a href="/">research page</a>.</p></main>
+:root { 
+  --ink: #fafafa; 
+  --muted: #a1a1aa; 
+  --line: rgba(39, 39, 42, 0.8); 
+  --paper: #09090b; 
+  --accent: #10b981; 
+  --accent-glow: rgba(16, 185, 129, 0.25);
+  --danger: #ef4444; 
+}
+* { box-sizing: border-box; }
+body { 
+  margin: 0; 
+  background: var(--paper); 
+  color: var(--ink); 
+  font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+  background-image: radial-gradient(circle at 50% -20%, rgba(16, 185, 129, 0.15), rgba(9, 9, 11, 1) 45%); 
+  min-height: 100vh;
+  line-height: 1.55;
+}
+header { 
+  background: rgba(9, 9, 11, 0.75) !important; 
+  backdrop-filter: blur(16px); 
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important; 
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.top { 
+  max-width: 1200px; 
+  margin: auto; 
+  padding: 18px 30px; 
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  gap: 24px;
+}
+.brand { 
+  font-size: 19px; 
+  font-weight: 800; 
+  letter-spacing: .095em; 
+  background: linear-gradient(90deg, #10b981, #3b82f6); 
+  -webkit-background-clip: text; 
+  background-clip: text; 
+  -webkit-text-fill-color: transparent;
+}
+.nav { display: flex; align-items: center; gap: 24px; }
+.nav a { 
+  font-size: 13px; 
+  text-decoration: none; 
+  color: var(--muted); 
+  font-weight: 600; 
+  text-transform: uppercase; 
+  letter-spacing: 0.05em; 
+  transition: all 0.3s ease;
+}
+.nav a[aria-current=page], .nav a:hover { 
+  color: var(--ink); 
+  text-shadow: 0 0 12px rgba(255,255,255,0.3);
+}
+.nav a[aria-current=page] {
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 4px;
+}
+.chip { 
+  border: 1px solid rgba(16, 185, 129, 0.3); 
+  color: #10b981; 
+  background: rgba(16, 185, 129, 0.08); 
+  border-radius: 6px; 
+  padding: 5px 12px; 
+  font-size: 11px; 
+  letter-spacing: .1em; 
+  font-weight: 700; 
+  text-transform: uppercase;
+}
+main { max-width: 1200px; margin: auto; padding: 40px 30px 80px; }
+.eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .16em; font-weight: 740; color: var(--accent); }
+h1 { font-size: clamp(32px, 4vw, 48px); letter-spacing: -.045em; line-height: 1.1; margin: 10px 0; font-weight: 800; }
+.intro { color: var(--muted); max-width: 650px; margin: 0; font-size: 15px; }
+.heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 32px; flex-wrap: wrap; }
+button { 
+  font: inherit; 
+  font-size: 13px; 
+  font-weight: 700; 
+  border: 1px solid var(--accent); 
+  border-radius: 8px; 
+  background: var(--accent); 
+  color: #fff; 
+  cursor: pointer; 
+  padding: 11px 20px; 
+  white-space: nowrap; 
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
+}
+button:hover { 
+  transform: translateY(-2px); 
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4); 
+}
+button:disabled { opacity: .6; cursor: wait; transform: none; }
+button.ghost { 
+  background: transparent !important; 
+  color: #fafafa !important; 
+  border: 1px solid rgba(63, 63, 70, 0.8) !important; 
+  box-shadow: none !important;
+}
+button.ghost:hover { background: rgba(63, 63, 70, 0.4) !important; }
+
+.section { 
+  background: rgba(24, 24, 27, 0.6) !important; 
+  border: 1px solid rgba(39, 39, 42, 0.8) !important; 
+  border-radius: 16px !important; 
+  margin-top: 24px; 
+  padding: 28px; 
+  min-width: 0; 
+  backdrop-filter: blur(12px); 
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+}
+.section h2 { font-size: 19px; letter-spacing: -.02em; margin: 0 0 6px; font-weight: 700; }
+.sub { color: var(--muted); font-size: 13px; margin: 0 0 22px; }
+
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-bottom: 24px; }
+.metric { 
+  background: rgba(24, 24, 27, 0.6) !important; 
+  border: 1px solid rgba(39, 39, 42, 0.8) !important; 
+  border-radius: 16px !important; 
+  padding: 24px; 
+  min-width: 0;
+  backdrop-filter: blur(12px);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+.metric:hover { 
+  transform: translateY(-3px); 
+  border-color: rgba(16, 185, 129, 0.4) !important; 
+  box-shadow: 0 12px 30px rgba(0,0,0,0.3), 0 0 20px var(--accent-glow);
+}
+.metric:first-child::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #10b981, #3b82f6);
+}
+.metric span { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.metric strong { display: block; font-size: clamp(24px, 3.2vw, 34px); letter-spacing: -.035em; margin-top: 12px; font-variant-numeric: tabular-nums; color: #fafafa; font-weight: 800; }
+
+.chart-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 18px; }
+.tf-btn {
+  background: rgba(39, 39, 42, 0.6);
+  border: 1px solid rgba(63, 63, 70, 0.6);
+  color: var(--muted);
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: none;
+}
+.tf-btn:hover, .tf-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.chartwrap { 
+  border: 1px solid rgba(39, 39, 42, 0.8); 
+  border-radius: 12px; 
+  padding: 20px; 
+  background: rgba(9, 9, 11, 0.6);
+  position: relative;
+  min-height: 280px;
+}
+
+.caption, .foot { font-size: 12px; color: var(--muted); margin-top: 14px; }
+.empty { color: var(--muted); font-size: 13px; padding: 24px 0; text-align: center; }
+.error { color: var(--danger); background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 18px; }
+
+.tablewrap { overflow-x: auto; border: 1px solid rgba(39, 39, 42, 0.8); border-radius: 12px; }
+table { border-collapse: collapse; width: 100%; min-width: 680px; font-size: 13px; }
+th { text-align: left; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; background: rgba(24, 24, 27, 0.8); }
+th, td { padding: 14px 18px; border-bottom: 1px solid rgba(39, 39, 42, 0.6); }
+tr:last-child td { border-bottom: 0; }
+tr:hover td { background: rgba(255, 255, 255, 0.025); }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.positive { color: var(--accent); font-weight: 600; }
+.negative { color: var(--danger); font-weight: 600; }
+.status { font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .04em; padding: 4px 10px; border-radius: 6px; display: inline-block; }
+.status.filled { color: #10b981; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.25); }
+.status.new, .status.accepted { color: #3b82f6; background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.25); }
+.symbol { font-weight: 750; letter-spacing: 0.03em; color: #fafafa; }
+.foot { margin-top: 40px; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+@media(max-width: 750px) {
+  .top { padding: 16px 18px; flex-wrap: wrap; gap: 12px; }
+  .chip { display: none; }
+  main { padding: 24px 18px 60px; }
+  .heading { align-items: start; flex-wrap: wrap; }
+  .metrics { grid-template-columns: 1fr; }
+  .section { padding: 20px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div class="brand">AGENTTRADE</div>
+    <nav class="nav" aria-label="Main navigation">
+      <a href="/">Research</a>
+      <a href="/portfolio" aria-current="page">Portfolio</a>
+      <a href="/architecture">Architecture</a>
+      <a href="/evaluation">AD23731 Evaluation</a>
+    </nav>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span class="chip">Paper environment</span>
+      <button id="logout-btn" style="display:none; padding: 5px 12px; font-size: 11px; margin: 0;" class="ghost">Logout</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="heading">
+    <div>
+      <div class="eyebrow">Alpaca paper / live broker telemetry</div>
+      <h1>Paper portfolio</h1>
+      <p class="intro">Broker-reported account values, open positions, and order ledger. Real-time paper execution.</p>
+    </div>
+    <button type="button" id="refresh">Refresh portfolio</button>
+  </div>
+
+  <!-- TradingView Ticker Widget -->
+  <div class="tradingview-widget-container" style="margin-bottom: 28px; border-radius: 12px; overflow: hidden; border: 1px solid rgba(39, 39, 42, 0.8); background: rgba(24, 24, 27, 0.6); padding: 4px 8px;">
+    <div class="tradingview-widget-container__widget" id="tv-ticker-tape" style="width: 100%; min-height: 46px;"></div>
+    <script>
+      (function() {
+        const script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js';
+        script.async = true;
+        script.innerHTML = JSON.stringify({
+          "symbols": [
+            { "proName": "FOREXCOM:SPXUSD", "title": "S&P 500 Index" },
+            { "proName": "FOREXCOM:NSXUSD", "title": "US 100 Cash" },
+            { "description": "Apple", "proName": "NASDAQ:AAPL" },
+            { "description": "Tesla", "proName": "NASDAQ:TSLA" },
+            { "description": "Nvidia", "proName": "NASDAQ:NVDA" }
+          ],
+          "showSymbolLogo": true,
+          "isTransparent": true,
+          "displayMode": "adaptive",
+          "colorTheme": "dark",
+          "locale": "en"
+        });
+        document.getElementById('tv-ticker-tape').appendChild(script);
+      })();
+    </script>
+  </div>
+
+  <div id="notice" role="status" aria-live="polite"></div>
+  <div id="content" aria-live="polite"><div class="empty">Loading paper account telemetry...</div></div>
+
+  <p class="foot">Paper account only. Quotes and broker history may be delayed. Local sandbox endpoint; research proposals are managed on the <a href="/">research desk</a>.</p>
+</main>
+
 <script>
-const $=id=>document.getElementById(id);
-function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function money(v){const n=Number(v);return Number.isFinite(n)?'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'—'}
-function signed(v){const n=Number(v);return '<span class="'+(n<0?'negative':'positive')+'">'+(n>0?'+':'')+money(n)+'</span>'}
-function date(v){if(!v)return '—';const d=new Date(v);return Number.isNaN(d.getTime())?'—':esc(d.toLocaleString())}
-function chart(points){const valid=points.filter(p=>Number.isFinite(Number(p.profit_loss))&&Number.isFinite(Number(p.timestamp)));if(!valid.length)return '<div class="empty">No broker P&amp;L history yet.</div>';const values=valid.map(p=>Number(p.profit_loss));const lo=Math.min(0,...values),hi=Math.max(0,...values),span=(hi-lo)||1,x=i=>35+i*730/Math.max(values.length-1,1),y=v=>165-(v-lo)*130/span;const path=values.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+','+y(v).toFixed(1)).join(' ');const y0=y(0).toFixed(1);const areaPath=path+` L ${x(values.length-1).toFixed(1)},${y0} L ${x(0).toFixed(1)},${y0} Z`;const latest=values.at(-1);const isPos=latest>=0;const color=isPos?'#10b981':'#ef4444';const pill=isPos?'<span style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#10b981;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">🟢 OUTPERFORMING</span>':'<span style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">🔴 DRAWDOWN</span>';const fDate=new Date(Number(valid[0].timestamp)*1000).toLocaleDateString();const lDate=new Date(Number(valid.at(-1).timestamp)*1000).toLocaleDateString();const maxV=Math.max(...values),minV=Math.min(...values);return `<div style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;"><div style="display:flex;align-items:center;gap:10px;">${pill}<span style="font-size:13px;color:var(--muted)">Net 30D Performance:</span><strong style="font-size:16px;color:${color}">${signed(latest)}</strong></div><div style="display:flex;gap:16px;font-size:11px;color:var(--muted);"><div>Peak: <strong style="color:#10b981">${money(maxV)}</strong></div><div>Trough: <strong style="color:${minV<0?'#ef4444':'#fafafa'}">${money(minV)}</strong></div></div></div><div class="chartwrap" style="position:relative;"><svg viewBox="0 0 800 205" role="img" aria-label="Broker reported profit and loss over the last month"><defs><linearGradient id="pl-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${color}" stop-opacity="0.35"/><stop offset="100%" stop-color="${color}" stop-opacity="0.0"/></linearGradient><filter id="glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.5" result="blur"/><feComposite in="SourceGraphic" in2="blur" operator="over"/></filter></defs><line x1="35" y1="${y0}" x2="765" y2="${y0}" stroke="rgba(255,255,255,0.15)" stroke-dasharray="4 4"/><path d="${areaPath}" fill="url(#pl-grad)"/><path d="${path}" fill="none" stroke="${color}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/><circle cx="${x(values.length-1).toFixed(1)}" cy="${y(latest).toFixed(1)}" r="8" fill="${color}" opacity="0.3"><animate attributeName="r" values="6;13;6" dur="2.2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.4;0.1;0.4" dur="2.2s" repeatCount="indefinite"/></circle><circle cx="${x(values.length-1).toFixed(1)}" cy="${y(latest).toFixed(1)}" r="4.5" fill="${color}" stroke="#09090b" stroke-width="1.5"/><text x="35" y="195" fill="#a1a1aa" font-size="11">${esc(fDate)}</text><text x="680" y="195" fill="#a1a1aa" font-size="11">${esc(lDate)}</text></svg></div><p class="caption" style="display:flex;justify-content:space-between;align-items:center;"><span>Latest reported P&amp;L: ${signed(latest)}</span><span style="font-size:11px;color:var(--muted)">Verified by Alpaca Paper Broker</span></p>`}
-function render(p){if(!p.configured){$('content').innerHTML='<section class="section"><h2>Connect a paper account</h2><p class="sub">'+esc(p.message||'Add Alpaca paper keys to your local .env, then restart the API.')+'</p><p class="caption">No sample holdings are displayed here.</p></section>';return}
-const metrics='<div class="metrics"><div class="metric"><span>Account equity</span><strong>'+money(p.equity)+'</strong></div><div class="metric"><span>Cash</span><strong>'+money(p.cash)+'</strong></div><div class="metric"><span>Buying power</span><strong>'+money(p.buying_power)+'</strong></div></div>';
-const positions=(p.positions||[]).length?'<div class="tablewrap"><table><thead><tr><th>Symbol</th><th class="num">Quantity</th><th class="num">Market value</th><th class="num">Unrealized P&amp;L</th></tr></thead><tbody>'+p.positions.map(q=>'<tr><td data-label="Symbol" class="symbol">'+esc(q.symbol)+'</td><td data-label="Quantity" class="num">'+esc(q.qty)+'</td><td data-label="Market value" class="num">'+money(q.market_value)+'</td><td data-label="Unrealized P&L" class="num">'+signed(q.unrealized_pl)+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">No open paper positions.</div>';
-const orders=(p.orders||[]).length?'<div class="tablewrap"><table><thead><tr><th>Submitted</th><th>Symbol</th><th>Side</th><th class="num">Ordered</th><th class="num">Filled</th><th class="num">Avg. fill</th><th>Status</th></tr></thead><tbody>'+p.orders.map(o=>'<tr><td data-label="Submitted">'+date(o.submitted_at)+'</td><td data-label="Symbol" class="symbol">'+esc(o.symbol)+'</td><td data-label="Side">'+esc(o.side)+'</td><td data-label="Ordered" class="num">'+esc(o.qty)+'</td><td data-label="Filled" class="num">'+esc(o.filled_qty)+'</td><td data-label="Avg. fill" class="num">'+(o.filled_avg_price==null?'—':money(o.filled_avg_price))+'</td><td data-label="Status"><span class="status '+(o.status==='filled'?'filled':'')+'">'+esc(o.status.replace(/_/g,' '))+'</span></td></tr>').join('')+'</tbody></table></div>':'<div class="empty">No recent paper orders.</div>';
-$('content').innerHTML=metrics+'<section class="section"><h2>Profit/loss over time</h2><p class="sub">Last month · Alpaca paper portfolio history</p>'+chart(p.profit_loss_history||[])+'</section><section class="section"><h2>Current positions</h2><p class="sub">Open holdings from the broker, not inferred from proposals.</p>'+positions+'</section><section class="section"><h2>Recent paper orders</h2><p class="sub">Last 20 broker orders. Submitted orders are not necessarily filled.</p>'+orders+'<p class="caption">'+esc(p.note||'')+'</p></section>'}
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) }
+function money(v){ const n=Number(v); return Number.isFinite(n) ? '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—' }
+function signed(v){ const n=Number(v); return '<span class="'+(n<0?'negative':'positive')+'">'+(n>0?'+':'')+money(n)+'</span>' }
+function date(v){ if(!v)return '—'; const d=new Date(v); return Number.isNaN(d.getTime())?'—':esc(d.toLocaleString()) }
+
+let chartInstance = null;
+
+function renderChart(points) {
+  const valid = points.filter(p => Number.isFinite(Number(p.profit_loss)) && Number.isFinite(Number(p.timestamp)));
+  if (!valid.length) return '<div class="empty">No broker P&amp;L history recorded yet.</div>';
+
+  const labels = valid.map(p => new Date(Number(p.timestamp)*1000).toLocaleDateString(undefined, {month:'short', day:'numeric'}));
+  const data = valid.map(p => Number(p.profit_loss));
+  const latest = data.at(-1);
+  const isPos = latest >= 0;
+  const strokeColor = isPos ? '#10b981' : '#ef4444';
+  const pill = isPos 
+    ? '<span style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#10b981;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;">🟢 OUTPERFORMING</span>' 
+    : '<span style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;">🔴 DRAWDOWN</span>';
+
+  const maxV = Math.max(...data);
+  const minV = Math.min(...data);
+
+  const html = `
+    <div class="chart-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        ${pill}
+        <span style="font-size:13px;color:var(--muted)">Net P&L Return:</span>
+        <strong style="font-size:18px;color:${strokeColor}">${signed(latest)}</strong>
+      </div>
+      <div style="display:flex;align-items:center;gap:18px;font-size:12px;color:var(--muted);">
+        <div>Peak High: <strong style="color:#10b981">${money(maxV)}</strong></div>
+        <div>Trough Low: <strong style="color:${minV<0?'#ef4444':'#fafafa'}">${money(minV)}</strong></div>
+        <div style="display:flex;gap:4px;" class="tf-group">
+          <button class="tf-btn active" onclick="filterTF('ALL', this)">ALL</button>
+        </div>
+      </div>
+    </div>
+    <div class="chartwrap">
+      <canvas id="pl-canvas" style="width:100%;height:260px;"></canvas>
+    </div>
+    <p class="caption" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>Latest reported P&amp;L: ${signed(latest)}</span>
+      <span style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;">
+        <span style="width:7px;height:7px;border-radius:50%;background:#10b981;display:inline-block;"></span> Live Alpaca Telemetry
+      </span>
+    </p>
+  `;
+
+  setTimeout(() => {
+    const ctx = document.getElementById('pl-canvas');
+    if (!ctx) return;
+    
+    if (chartInstance) chartInstance.destroy();
+
+    const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 260);
+    gradient.addColorStop(0, isPos ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)');
+    gradient.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
+
+    chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Profit / Loss ($)',
+          data: data,
+          borderColor: strokeColor,
+          borderWidth: 2.8,
+          fill: true,
+          backgroundColor: gradient,
+          tension: 0.35,
+          pointBackgroundColor: strokeColor,
+          pointBorderColor: '#09090b',
+          pointBorderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 7,
+          pointHoverBackgroundColor: strokeColor,
+          pointHoverBorderColor: '#fff',
+          pointHoverBorderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { intersect: false, mode: 'index' },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(24, 24, 27, 0.95)',
+            titleColor: '#fafafa',
+            bodyColor: '#10b981',
+            borderColor: 'rgba(63, 63, 70, 0.8)',
+            borderWidth: 1,
+            padding: 12,
+            boxPadding: 6,
+            usePointStyle: true,
+            callbacks: {
+              label: function(context) {
+                const v = context.parsed.y;
+                return ' P&L: ' + (v >= 0 ? '+' : '') + '$' + v.toLocaleString('en-US', {minimumFractionDigits:2});
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(39, 39, 42, 0.4)', drawBorder: false },
+            ticks: { color: '#a1a1aa', font: { family: 'Inter', size: 11 } }
+          },
+          y: {
+            grid: { color: 'rgba(39, 39, 42, 0.6)', drawBorder: false },
+            ticks: { 
+              color: '#a1a1aa', 
+              font: { family: 'Inter', size: 11 },
+              callback: function(value) { return '$' + value; }
+            }
+          }
+        }
+      }
+    });
+  }, 50);
+
+  return html;
+}
+
+function render(p) {
+  if (!p.configured) {
+    $('content').innerHTML = '<section class="section"><h2>Connect a paper account</h2><p class="sub">' + esc(p.message || 'Add Alpaca paper keys to your local .env, then restart the API.') + '</p><p class="caption">No sample holdings are displayed here.</p></section>';
+    return;
+  }
+
+  const metrics = `
+    <div class="metrics">
+      <div class="metric">
+        <span>📈 Account Equity</span>
+        <strong>${money(p.equity)}</strong>
+      </div>
+      <div class="metric">
+        <span>💵 Cash Balance</span>
+        <strong>${money(p.cash)}</strong>
+      </div>
+      <div class="metric">
+        <span>⚡ Buying Power (4x)</span>
+        <strong>${money(p.buying_power)}</strong>
+      </div>
+    </div>`;
+
+  const positions = (p.positions || []).length ? `
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th class="num">Quantity</th>
+            <th class="num">Market Value</th>
+            <th class="num">Unrealized P&amp;L</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${p.positions.map(q => `
+            <tr>
+              <td class="symbol">${esc(q.symbol)}</td>
+              <td class="num">${esc(q.qty)}</td>
+              <td class="num">${money(q.market_value)}</td>
+              <td class="num">${signed(q.unrealized_pl)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>` : '<div class="empty">No open paper positions in portfolio.</div>';
+
+  const orders = (p.orders || []).length ? `
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Submitted</th>
+            <th>Symbol</th>
+            <th>Side</th>
+            <th class="num">Ordered</th>
+            <th class="num">Filled</th>
+            <th class="num">Avg Fill</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${p.orders.map(o => `
+            <tr>
+              <td>${date(o.submitted_at)}</td>
+              <td class="symbol">${esc(o.symbol)}</td>
+              <td><span style="font-weight:700;color:${o.side.toUpperCase()==='BUY'?'#10b981':'#ef4444'}">${esc(o.side.toUpperCase())}</span></td>
+              <td class="num">${esc(o.qty)}</td>
+              <td class="num">${esc(o.filled_qty)}</td>
+              <td class="num">${o.filled_avg_price == null ? '—' : money(o.filled_avg_price)}</td>
+              <td><span class="status ${esc(o.status.toLowerCase())}">${esc(o.status.replace(/_/g, ' '))}</span></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>` : '<div class="empty">No recent paper orders logged.</div>';
+
+  $('content').innerHTML = metrics + `
+    <section class="section">
+      <h2>Profit / Loss over time</h2>
+      <p class="sub">Historical broker P&amp;L analytics · Alpaca paper account</p>
+      ${renderChart(p.profit_loss_history || [])}
+    </section>
+    <section class="section">
+      <h2>Current positions</h2>
+      <p class="sub">Open broker holdings reported directly from Alpaca</p>
+      ${positions}
+    </section>
+    <section class="section">
+      <h2>Recent paper orders</h2>
+      <p class="sub">Last 20 executed or pending broker orders</p>
+      ${orders}
+      <p class="caption">${esc(p.note || '')}</p>
+    </section>`;
+}
+
 async function refresh() {
-    const btn=$('refresh'); btn.disabled=true; btn.textContent='Refreshing...'; $('notice').innerHTML='<span style="color:var(--muted);font-size:13px;">Fetching broker data...</span>';
-    try {
-        const u = localStorage.getItem('agenttrade_user') || '';
-        const p = localStorage.getItem('agenttrade_pass') || '';
-        const qs = '?username=' + encodeURIComponent(u) + '&password=' + encodeURIComponent(p);
-        const r = await fetch('/api/portfolio' + qs, {cache:'no-store'});
-        const d = await r.json().catch(()=>({}));
-        if(!r.ok) throw Error(typeof d.detail==='string'?d.detail:'Broker data unavailable');
-        render(d);
-        $('notice').innerHTML=d.configured?'<div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);color:#10b981;border-radius:8px;padding:8px 14px;display:inline-block;font-size:13px;font-weight:600;margin-bottom:18px;">Broker data refreshed.</div>':'<div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);color:#f59e0b;border-radius:8px;padding:8px 14px;display:inline-block;font-size:13px;font-weight:600;margin-bottom:18px;">Paper account not configured.</div>';
-    } catch(e) {
-        $('notice').innerHTML='<div class="error">'+esc(e.message)+'</div>';
-        $('content').innerHTML='';
-    } finally {
-        btn.disabled=false;
-        btn.textContent='Refresh portfolio';
-    }
+  const btn = $('refresh');
+  btn.disabled = true;
+  btn.textContent = 'Refreshing...';
+  $('notice').innerHTML = '<span style="color:var(--muted);font-size:13px;display:inline-block;margin-bottom:16px;">Fetching live broker telemetry...</span>';
+  try {
+    const u = localStorage.getItem('agenttrade_user') || '';
+    const p = localStorage.getItem('agenttrade_pass') || '';
+    const qs = '?username=' + encodeURIComponent(u) + '&password=' + encodeURIComponent(p);
+    const r = await fetch('/api/portfolio' + qs, { cache: 'no-store' });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw Error(typeof d.detail === 'string' ? d.detail : 'Broker data unavailable');
+    render(d);
+    $('notice').innerHTML = d.configured 
+      ? '<div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);color:#10b981;border-radius:8px;padding:8px 14px;display:inline-block;font-size:13px;font-weight:600;margin-bottom:18px;">Broker telemetry synchronized.</div>'
+      : '<div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);color:#f59e0b;border-radius:8px;padding:8px 14px;display:inline-block;font-size:13px;font-weight:600;margin-bottom:18px;">Paper account not configured.</div>';
+  } catch(e) {
+    $('notice').innerHTML = '<div class="error">' + esc(e.message) + '</div>';
+    $('content').innerHTML = '';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Refresh portfolio';
+  }
 }
+
 function checkLogout() {
-    const btn = document.getElementById('logout-btn');
-    if(btn) {
-        btn.style.display = localStorage.getItem('agenttrade_user') ? 'block' : 'none';
-        btn.onclick = () => {
-            localStorage.removeItem('agenttrade_user');
-            localStorage.removeItem('agenttrade_pass');
-            window.location.reload();
-        };
-    }
+  const btn = document.getElementById('logout-btn');
+  if(btn) {
+    btn.style.display = localStorage.getItem('agenttrade_user') ? 'block' : 'none';
+    btn.onclick = () => {
+      localStorage.removeItem('agenttrade_user');
+      localStorage.removeItem('agenttrade_pass');
+      window.location.reload();
+    };
+  }
 }
-$('refresh').addEventListener('click',refresh);refresh();checkLogout();
-</script></body></html>
+
+$('refresh').addEventListener('click', refresh);
+refresh();
+checkLogout();
+</script>
+</body>
+</html>
