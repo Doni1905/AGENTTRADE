@@ -725,7 +725,15 @@ researchForm.addEventListener('submit', e => {
 });
 
 function highlightDecisions(text) {
-  return marked.parse(text)
+  // Escape raw HTML, then remove active markup generated from Markdown links/images.
+  const template = document.createElement('template');
+  template.innerHTML = typeof marked !== 'undefined' ? marked.parse(esc(text)) : esc(text);
+  const allowed = new Set(['P','BR','STRONG','EM','DEL','CODE','PRE','BLOCKQUOTE','UL','OL','LI','H1','H2','H3','H4','H5','H6','HR','TABLE','THEAD','TBODY','TR','TH','TD']);
+  for (const element of Array.from(template.content.querySelectorAll('*'))) {
+    if (!allowed.has(element.tagName)) element.replaceWith(document.createTextNode(element.textContent || element.getAttribute('alt') || ''));
+    else for (const attribute of Array.from(element.attributes)) element.removeAttribute(attribute.name);
+  }
+  return template.innerHTML
     .replace(/\b(BUY)\b/g, '<span style="color: #10b981; font-weight: 800; background: rgba(16,185,129,0.15); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(16,185,129,0.3);">BUY</span>')
     .replace(/\b(SELL)\b/g, '<span style="color: #ef4444; font-weight: 800; background: rgba(239,68,68,0.15); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(239,68,68,0.3);">SELL</span>')
     .replace(/\b(HOLD)\b/g, '<span style="color: #f59e0b; font-weight: 800; background: rgba(245,158,11,0.15); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(245,158,11,0.3);">HOLD</span>');
