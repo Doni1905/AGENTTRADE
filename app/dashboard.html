@@ -188,7 +188,7 @@ function discCard(x,cls,primary){
 async function runDiscovery(question){
   const button=document.getElementById('run');
   button.textContent='Screening the market...';
-  result.textContent='No company named, so I am checking today\'s most active US stocks and running each through the research agents. This can take a few minutes.';
+  result.textContent='Scanning the market for the best stocks... This may take a few minutes.';
   const data=await req('/discover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:question,mode:document.getElementById('mode').value==='agentic'?'fixed':document.getElementById('mode').value})});
   result.textContent='';
   const pick=data.pick;
