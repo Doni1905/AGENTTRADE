@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="AGENTTRADE deterministic service", version="1.3")
 DB = os.getenv("DATABASE_PATH", "/tmp/agenttrade.sqlite3")
-OLLAMA = os.getenv("OLLAMA_URL", "http://localhost:11434")
-QDRANT = os.getenv("QDRANT_URL", "http://localhost:6333")
+OLLAMA = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
+QDRANT = os.getenv("QDRANT_URL", "http://127.0.0.1:6333")
 # n8n runs natively on the host; the container reaches it via host.docker.internal.
 N8N = os.getenv("N8N_URL", "http://host.docker.internal:5678")
 COLLECTION = "agenttrade_evidence"
