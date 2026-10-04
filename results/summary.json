@@ -1,0 +1,68 @@
+[
+  {
+    "model": "qwen2.5:3b",
+    "mode": "none",
+    "n": 75,
+    "successful": 75,
+    "accuracy": 0.307,
+    "reasoning_quality": 0,
+    "citation_rate": 0.013,
+    "exact_response_consistency": 0.0,
+    "errors": 0
+  },
+  {
+    "model": "qwen2.5:3b",
+    "mode": "fixed",
+    "n": 75,
+    "successful": 75,
+    "accuracy": 0.707,
+    "reasoning_quality": 0,
+    "citation_rate": 0,
+    "exact_response_consistency": 0.0,
+    "errors": 0
+  },
+  {
+    "model": "qwen2.5:3b",
+    "mode": "agentic",
+    "n": 75,
+    "successful": 75,
+    "accuracy": 0.64,
+    "reasoning_quality": 0.013,
+    "citation_rate": 0.053,
+    "exact_response_consistency": 0.0,
+    "errors": 0
+  },
+  {
+    "model": "llama3.2:3b",
+    "mode": "none",
+    "n": 75,
+    "successful": 75,
+    "accuracy": 0.293,
+    "reasoning_quality": 0,
+    "citation_rate": 0,
+    "exact_response_consistency": 0.0,
+    "errors": 0
+  },
+  {
+    "model": "llama3.2:3b",
+    "mode": "fixed",
+    "n": 75,
+    "successful": 75,
+    "accuracy": 0.893,
+    "reasoning_quality": 0,
+    "citation_rate": 0,
+    "exact_response_consistency": 0.0,
+    "errors": 0
+  },
+  {
+    "model": "llama3.2:3b",
+    "mode": "agentic",
+    "n": 75,
+    "successful": 75,
+    "accuracy": 0.747,
+    "reasoning_quality": 0.027,
+    "citation_rate": 0.027,
+    "exact_response_consistency": 0.0,
+    "errors": 0
+  }
+]

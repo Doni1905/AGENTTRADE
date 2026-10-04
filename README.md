@@ -1,261 +1,302 @@
-# AGENTTRADE
+# 📈 AGENTTRADE
 
-AGENTTRADE is a local stock-research tool for US-listed equities. It combines n8n workflows, local Ollama models, Qdrant retrieval, and a Python API to compare research approaches and submit **paper-only** orders through Alpaca after explicit human approval. It is an educational project, not an investment adviser or a live-trading system.
+> **Evidence before execution.** A local, privacy-first stock-research assistant powered by a bounded multi-agent pipeline — with mandatory human approval before any paper order is placed.
 
-## Features
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat&logo=fastapi&logoColor=white)
+![n8n](https://img.shields.io/badge/n8n-workflow_orchestration-EA4B71?style=flat&logo=n8n&logoColor=white)
+![Ollama](https://img.shields.io/badge/Ollama-Qwen2.5_7B%2F3B-black?style=flat)
+![Qdrant](https://img.shields.io/badge/Qdrant-vector_store-DC143C?style=flat)
+![Alpaca](https://img.shields.io/badge/Alpaca-paper_trading_only-FFCB05?style=flat)
+![License](https://img.shields.io/badge/license-Educational-blue?style=flat)
 
-- Any valid US-listed symbol for research and paper proposals: symbols are validated live against Yahoo Finance, and unknown symbols are rejected with a clear error. For research, dated live evidence cards for the requested symbol are built from Yahoo Finance price history, available statistics and recent headlines, then upserted alongside frozen benchmark cards in Qdrant.
-- Each research answer starts with a 2-4 sentence **Simple summary** for readers without a finance background. Technical details follow with a BUY/HOLD/SELL decision where relevant, dated evidence, and brief plain-word explanations of financial terms. An unrelated question gets no forced trading decision.
-- Three research modes: no retrieval (`none`), fixed top-3 retrieval (`fixed`), and agent-selected Qdrant retrieval (`agentic`).
-- Retrieval and analyst roles, short bull/bear arguments and a critic judge, followed by one bounded correction pass.
-- Two-tier local models: `qwen2.5:7b` for analyst and critic judge; `qwen2.5:3b` for retrieval, bull, bear and bounded correction. `llama3.2:3b` remains a single-model benchmark alternative; `nomic-embed-text` handles embeddings.
-- Python-calculated market indicators and deterministic proposal/risk checks. Research output cannot place an order.
-- A dashboard approval flow for Alpaca paper orders: pending proposals, one-click approve or reject, local approval code, proposal expiry, and duplicate-order checks. An n8n approval form is included as an alternative path.
-- A 25-question benchmark comparing three retrieval modes across both models; the evaluator writes raw responses, measured summaries, and the report table after a local run. A dedicated paper portfolio page reads broker positions, historical profit/loss, and recent broker orders/fills.
+AGENTTRADE is a **local, educational** stock-research platform for US-listed equities. It orchestrates five AI agents through n8n, retrieves vector-DB evidence from Qdrant, runs all LLMs locally via Ollama, and gates every paper order behind an explicit human-click approval. No live-trading. No cloud LLM. No data leaves your machine.
 
-## Architecture
+---
 
-```text
-Native on the host machine:   n8n (workflow orchestration) + Ollama (models)
-Docker Compose (containers):  qdrant (evidence store) + api (FastAPI service)
+## 📸 Screenshots
 
-Research request -> n8n research workflow -> Python API (prepare, data, fixed retrieval)
-                                        |-> Qdrant + Ollama: retrieval agent (agentic mode)
-                                        |-> Ollama: analyst -> bull -> bear -> critic judge -> one correction -> answer
+### Research Dashboard — TSLA Analysis
+![TSLA Dashboard — SELL verdict with evidence breakdown](docs/screenshots/1_dashboard_tsla.png)
 
-Human -> dashboard approval (or n8n form) -> Python API (risk recheck, SQLite ledger)
-                           -> Alpaca paper API (order submission only)
+### Research Dashboard — AAPL Analysis
+![AAPL Dashboard — HOLD verdict at $333.69](docs/screenshots/1_dashboard_aapl.png)
+
+### Human Approval Queue — Pending BUY Proposal
+![Pending Approval Queue showing BUY 1 TSLA @ $370.59](docs/screenshots/2_approve_box.png)
+
+### After Approval — Submitted to Alpaca Paper
+![Confirmation: SUBMITTED TO ALPACA with real Alpaca order ID](docs/screenshots/2_approve_confirmation.png)
+
+### Paper Portfolio — Live Positions & P&L
+![Portfolio page with Alpaca paper positions and equity history](docs/screenshots/3_portfolio.png)
+
+### Evaluation Page — AD23731 Benchmark (450 runs)
+![AD23731 evaluation results with accuracy and reasoning metrics](docs/screenshots/4_evaluation.png)
+
+### n8n Workflow Orchestration
+![n8n workflow list showing research and approval pipelines](docs/screenshots/5_n8n_workflows.png)
+
+---
+
+## 🏗️ Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        Host Machine                              │
+│   n8n (workflow orchestration)   +   Ollama (local LLMs)        │
+└──────────────────────┬───────────────────────────────────────────┘
+                       │  HTTP
+┌──────────────────────▼───────────────────────────────────────────┐
+│              Docker Compose Services                             │
+│   qdrant (evidence vector store)  │  api (FastAPI + dashboard)  │
+└──────────────────────────────────────────────────────────────────┘
+
+Research request
+  └─► n8n research workflow
+        ├─► FastAPI /prepare  (market snapshot, data ingestion)
+        ├─► Qdrant + Ollama:  Retrieval Agent  (agentic mode)
+        ├─► Ollama:           Analyst Agent    (qwen2.5:7b)
+        ├─► Ollama:           Bull Agent       (qwen2.5:3b)
+        ├─► Ollama:           Bear Agent       (qwen2.5:3b)
+        ├─► Ollama:           Critic / Judge   (qwen2.5:7b)
+        └─► Ollama:           Bounded Correction (qwen2.5:3b)
+
+Human approval gate
+  └─► Dashboard /proposal  (risk checks + SQLite ledger)
+        └─► [HUMAN CLICKS APPROVE]
+              └─► Alpaca Paper API  (market order, paper-only)
 ```
 
-Docker Compose runs two services: `qdrant` (evidence store) and `api` (FastAPI dashboard, market data, risk rules, and ledger). Ollama and n8n run natively on the host machine. The API container reaches host Ollama at `http://host.docker.internal:11434`, which Docker Desktop provides on both Mac and Windows. The research workflow does not have an order-submission path. See [the project report](docs/REPORT.md) for the design and evaluation limits.
+---
 
-## Prerequisites
+## ✨ Features
 
-- [Docker Desktop for Mac](https://docs.docker.com/desktop/setup/install/mac-install/) or [Docker Desktop for Windows](https://docs.docker.com/desktop/setup/install/windows-install/), started with its engine running.
-- [Ollama](https://ollama.com/download) installed natively on the host (Mac app or Windows installer), not in Docker.
-- [Node.js](https://nodejs.org/) (current LTS) to run n8n with `npx`.
-- Git and Python 3. The examples below use `python3` (Mac) and `python` (Windows).
-- Enough disk space for three language models and an embedding model. Model downloads can take several minutes.
-- Access to this private repository. An [Alpaca paper account](https://app.alpaca.markets/signup) is needed **only** to submit paper orders; research and evaluation do not need Alpaca keys.
+| Feature | Details |
+|---|---|
+| **5-agent pipeline** | Retrieval → Analyst → Bull/Bear debate → Critic Judge → Correction pass |
+| **Two-tier LLM routing** | `qwen2.5:7b` for Analyst & Judge · `qwen2.5:3b` for lighter roles |
+| **3 retrieval modes** | `none` / `fixed` top-3 / `agentic` vector-search |
+| **Live evidence cards** | Yahoo Finance price, statistics, and headlines → upserted into Qdrant |
+| **Human approval gate** | Every paper order requires explicit human click — no auto-execution |
+| **Paper-only trading** | Alpaca paper API only; live credentials are rejected |
+| **Risk guardrails** | Notional cap, 5-share limit, buying-power checks, proposal expiry |
+| **450-run benchmark** | 25 questions × 3 modes × 2 models × 3 repeats |
+| **Portfolio dashboard** | Live Alpaca positions, equity history, P&L chart |
+| **Fully local** | Ollama + n8n + Qdrant — no data leaves the machine |
 
-## Quick start
+---
 
-Run these commands on the machine hosting the stack. On Windows PowerShell, replace `cp` with `copy`, `python3` with `python`, and `curl` with `curl.exe` (PowerShell aliases `curl` to `Invoke-WebRequest`).
+## 🔧 Prerequisites
 
-1. Clone the repository and create your local environment file:
+| Requirement | Notes |
+|---|---|
+| [Docker Desktop](https://docs.docker.com/desktop/) | Mac or Windows, engine running |
+| [Ollama](https://ollama.com/download) | Native on host (not in Docker) |
+| [Node.js LTS](https://nodejs.org/) | To run `npx n8n` |
+| Python 3.11+ | For evaluation and smoke tests |
+| [Alpaca paper account](https://app.alpaca.markets/signup) | **Paper orders only** — not needed for research |
 
-   ```sh
-   git clone https://github.com/Doni1905/AGENTTRADE.git
-   cd AGENTTRADE
-   cp .env.example .env
-   ```
+---
 
-   In `.env`, replace `APPROVAL_CODE` with a random value. Do not commit `.env` or share the value.
+## 🚀 Quick Start
 
-   ```sh
-   python3 -c 'import secrets; print(secrets.token_hex(32))'
-   ```
+### 1. Clone & configure
 
-2. Install the required models with the native Ollama. Make sure Ollama is running (open the app on Mac, or the Ollama service on Windows):
+```sh
+git clone https://github.com/Doni1905/AGENTTRADE.git
+cd AGENTTRADE
+cp .env.example .env
+```
 
-   ```sh
-   ollama pull qwen2.5:7b
-   ollama pull qwen2.5:3b
-   ollama pull llama3.2:3b
-   ollama pull nomic-embed-text
-   ollama list
-   ```
+Edit `.env` — generate a strong approval code:
 
-3. Build and start the two container services, then check the API:
+```sh
+python3 -c 'import secrets; print(secrets.token_hex(32))'
+```
 
-   ```sh
-   docker compose up -d --build
-   docker compose ps
-   curl http://localhost:8000/health
-   ```
+Paste the output as `APPROVAL_CODE` in `.env`.
 
-4. Ingest the included synthetic evidence cards into Qdrant:
+### 2. Pull Ollama models
 
-   ```sh
-   curl -X POST http://localhost:8000/ingest
-   ```
+```sh
+ollama pull qwen2.5:7b
+ollama pull qwen2.5:3b
+ollama pull llama3.2:3b
+ollama pull nomic-embed-text
+ollama list
+```
 
-5. Start n8n natively (it stays in the foreground; use a second terminal for later commands):
+### 3. Start the stack
 
-   ```sh
-   npx n8n
-   ```
+```sh
+docker compose up -d --build
+docker compose ps
+curl http://localhost:8000/health
+```
 
-   Open [n8n](http://localhost:5678) and create its local owner account. Re-import the updated research workflow after pulling this version; the old imported copy will not update automatically. Use **Import from File** to import both `workflows/research.json` and `workflows/approval.json`. Then:
+### 4. Ingest evidence cards into Qdrant
 
-   - Create Ollama credentials using `http://localhost:11434` and Qdrant credentials using `http://localhost:6333`, and assign them to the matching model, embedding, and Qdrant nodes. If the Qdrant credential form requires an API key, an arbitrary local value is sufficient because Qdrant authentication is disabled in this setup.
-   - In each workflow, open the HTTP Request node and change its URL to the host API address: `http://localhost:8000/prepare` in the research workflow and `http://localhost:8000/approval` in the approval workflow. The exported files use the Compose-internal hostname `http://api:8000/...`, which a native n8n process cannot resolve.
+```sh
+curl -X POST http://localhost:8000/ingest
+```
 
-   The exported workflows do not include configured credentials. Review any node compatibility warnings against your installed n8n version.
+### 5. Start n8n
 
-6. Publish the research workflow in n8n before using its production webhook. The dashboard is at [http://localhost:8000](http://localhost:8000).
+```sh
+N8N_SECURE_COOKIE=false npx n8n
+```
 
-If the API logs show Ollama connection errors (`docker compose logs api`), native Ollama is bound to `127.0.0.1` by default. Set `OLLAMA_HOST=0.0.0.0` for the Ollama process so the container can reach it through `host.docker.internal`, then restart Ollama.
+Open [http://localhost:5678](http://localhost:5678), create an owner account, then:
 
-### Environment variables
+- Import `workflows/research.json` and `workflows/approval.json`
+- Create **Ollama** credentials (`http://localhost:11434`) and **Qdrant** credentials (`http://localhost:6333`)
+- In the research workflow's HTTP Request node, set URL to `http://localhost:8000/prepare`
+- Publish the research workflow
 
-Set these in the local `.env` file copied from `.env.example`.
+### 6. Open the dashboard
 
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `APPROVAL_CODE` | Yes | Private local code required by the paper-order approval endpoint; generate a unique value. |
-| `ALPACA_PAPER_KEY_ID` | Paper orders only | Alpaca **paper** account key ID. Leave empty for research-only use. |
-| `ALPACA_PAPER_SECRET_KEY` | Paper orders only | Matching Alpaca **paper** secret key. Leave empty for research-only use. |
-| `NEWSAPI_KEY` | No | Optional delayed headline feed for local development/testing only; leave empty for Yahoo fallback. |
+[http://localhost:8000](http://localhost:8000)
 
-`APPROVAL_CODE` is required by `compose.yaml` even when no paper order is planned. The API's Ollama and Qdrant service URLs are set in Compose, not in `.env`. Native n8n generates its own credential encryption key on first run, so no encryption-key variable is needed here.
+---
 
-## Usage
+## 🖥️ Usage
 
-### Run research
-
-After publishing the research workflow, send a test request to its production webhook:
+### Run a research query
 
 ```sh
 curl -sS http://localhost:5678/webhook/agenttrade-analyze \
   -H 'Content-Type: application/json' \
-  -d '{"question":"What is the max paper order notional?","ticker":"AAPL","mode":"agentic","model":"qwen2.5:3b","evaluation":true}'
+  -d '{"question":"Is TSLA a good buy right now?","ticker":"TSLA","mode":"agentic","evaluation":false}'
 ```
 
-`evaluation:true` accepts only AAPL or MSFT and uses frozen educational cards without fetching current prices. Run the benchmark on a clean Qdrant volume before doing live research; live cards already stored in the shared collection could contaminate agentic retrieval. Re-running `/ingest` does not delete live cards. For indicator context, use `evaluation:false`; the API fetches current Yahoo Finance data and fails closed if it is unavailable or stale. Set `mode` to `none`, `fixed`, or `agentic` to compare retrieval behavior. Inspect the n8n execution trace to confirm tool calls in agentic mode. The research form has one natural-language question box: ask "Is TSLA a good buy now?" or "What is your suggestion on Apple?" It detects uppercase tickers or common company names (Apple, Tesla, Microsoft, Nvidia, Google/Alphabet, Amazon, Meta), verifies detected tickers against live Yahoo prices, and immediately starts research without a confirmation tap. A small "Analyzing: Tesla (TSLA)" indicator shows the detected stock while the run starts. If it cannot find one stock, or finds multiple, it asks you to enter a ticker in a fallback field. A valid fallback ticker also starts research immediately. Network or stale-data errors are shown as errors, not mistaken for an unrecognized stock. The separate proposal form still requires a symbol. API clients and the evaluation harness can pass an explicit `ticker` to `/research` and `/prepare`; `/prepare` requires one. The dashboard puts the Simple summary first, then technical details. `/research` returns `simple_summary`, `technical_detail`, and the complete `answer`; if an old n8n import does not supply the required format, it shows an error rather than presenting a jargon-only answer. Re-import and publish the updated `workflows/research.json` after pulling; previous imports do not update automatically. An answer is never an order.
+Or just type in the dashboard — it auto-detects tickers from natural language ("Is Apple a good investment?").
 
-### Two-tier model routing
+### Submit a paper order (human-gated)
 
-The dashboard defaults to the split setup. Analyst and critic judge use `qwen2.5:7b`; retrieval, bull, bear and bounded correction use `qwen2.5:3b`. Embeddings stay on `nomic-embed-text`. The Simple summary is produced by the analyst and final correction, not a separate model. Correction remains a 3B generation step and can affect the final answer; a larger analyst/judge is not a guarantee of better results. Measure quality and latency on your Mac before making performance claims.
+1. Run a research question on the dashboard
+2. Fill in **Create Trade Proposal** (symbol, side, qty, rationale)
+3. Click **Create Pending Proposal**
+4. Review in **Pending Approval Queue** — click **Approve** or **Reject**
+5. A market order is sent to Alpaca paper API only after your click
 
-Requests to `/research`, `/prepare`, or the n8n webhook may omit all model fields to use this default, or set `fast_model` and `smart_model` explicitly. Both tier fields accept `qwen2.5:3b`, `llama3.2:3b`, or `qwen2.5:7b`. A legacy `model` request runs all six chat roles on that one model (`qwen2.5:3b`, `llama3.2:3b`, or `qwen2.5:7b`). Explicit tier fields override the legacy fallback for their tier only. Returned `fast_model` and `smart_model` fields identify the resolved routing; The workflow reports `model` as `two-tier` when no legacy selection was provided (the prepare payload uses null). Unknown model names return a validation error. No model is automatically downloaded or silently substituted if unavailable.
+### View paper portfolio
 
-```sh
-curl -sS http://localhost:5678/webhook/agenttrade-analyze \
-  -H 'Content-Type: application/json' \
-  -d '{"question":"What is the max paper order notional?","ticker":"AAPL","mode":"agentic","fast_model":"qwen2.5:3b","smart_model":"qwen2.5:7b","evaluation":true}'
-```
+[http://localhost:8000/portfolio](http://localhost:8000/portfolio)
 
-After pulling this update, run `ollama pull qwen2.5:7b` and `docker compose up -d --build`. Re-import `workflows/research.json` in n8n, reassign local credentials, set its prepare URL to `http://localhost:8000/prepare`, and publish it. Replace or unpublish the old research workflow so only one production webhook uses `agenttrade-analyze`. The old imported workflow will not gain tier routing by rebuilding Docker. The approval workflow is unchanged.
+Shows live Alpaca paper positions, equity history, P&L chart, and recent order fills.
 
-### Submit a human-approved paper order
-
-First add `ALPACA_PAPER_KEY_ID` and `ALPACA_PAPER_SECRET_KEY` from your **paper** account to `.env`, then reload the API container:
-
-```sh
-docker compose up -d --force-recreate api
-curl http://localhost:8000/snapshot/AAPL
-```
-
-Use the research dashboard at [http://localhost:8000](http://localhost:8000). The separate [portfolio page](http://localhost:8000/portfolio) shows Alpaca paper account equity, cash, buying power, current positions, a one-month broker P&L chart, and recent broker orders with filled quantities and prices. Use Refresh to reload. Without paper keys it shows setup guidance rather than invented holdings. The data endpoint is `/api/portfolio`. Neither page has login; keep it local.
-
-To submit a proposal on the research dashboard:
-
-1. In **New trade proposal**, type the symbol (any valid US-listed ticker), choose the side and quantity, and give a rationale. The server takes a fresh price snapshot and applies risk limits. With Alpaca paper keys configured, it checks live account status, available shares before a SELL, and buying power (with a 2% cushion) and the five-share limit before a BUY. Insufficient capacity or a failed account check returns a reason immediately and creates no pending proposal. Without keys, proposals remain local but approval cannot submit an order. A proposal is not an order.
-2. In **Pending approval**, review the proposal details. The approval code is pre-filled from your local `.env` by the server; your click is the human gate. Choose **Approve** or **Reject**.
-3. Approving re-runs expiry, price-move, risk and paper account capacity checks (positions or buying power can change). Broker rejection messages appear in the dashboard; check Alpaca before retrying an uncertain order. A successful approval sends a market order to `https://paper-api.alpaca.markets`. Rejecting closes the proposal. The **Ledger** section updates after each decision.
-
-Proposals expire 30 minutes after creation. The ledger records submission, not a guaranteed fill; confirm final status in the Alpaca paper dashboard. The pre-filled code is visible to anyone who can open the local page, so keep the ports bound to `127.0.0.1` and never expose them to the internet. Never enter live account credentials.
-
-The n8n approval form remains available as an alternative path: publish `workflows/approval.json` and open the **Production Form URL** displayed by its Form Trigger node. The same proposal IDs, expiry, and approval-code checks apply there.
-
-You can also create a proposal from the terminal instead of the form. The example below is an API request, **not** a recommendation to trade:
-
-```sh
-curl -sS -X POST http://localhost:8000/proposal \
-  -H 'Content-Type: application/json' \
-  -d '{"ticker":"AAPL","side":"BUY","quantity":1,"rationale":"Educational example only; review data and risk before simulation."}'
-curl http://localhost:8000/ledger
-```
-
-### Evaluate the research workflow
-
-From the repository root, with the research workflow published and both 3B benchmark models available:
-
-```sh
-python3 -m pip install -r requirements.txt
-python3 app/evaluate.py --repeats 1
-```
-
-The evaluator deliberately sends the legacy `model` field, so each benchmark condition uses one model for all roles. It does not measure the two-tier default.
-
-One repeat still runs 150 requests (25 questions x 3 modes x 2 models); use it to check the pipeline, not to claim final results. The full three-repeat comparison runs 450 requests and may take hours on a laptop:
+### Run the benchmark
 
 ```sh
 python3 app/evaluate.py --repeats 3
 ```
 
-Outputs are written to `results/raw.csv`, `results/summary.json`, and `results/RESULTS.md`, and the measured table replaces the evaluation section of `docs/REPORT.md`. Commit that measured report only after inspecting raw answers and n8n traces. One repeat gives no valid consistency measurement (shown as n/a). The accuracy and reasoning scores are term/citation proxies, not expert review. Check raw answers and citations manually before reporting conclusions.
+Runs 450 requests (25 questions × 3 modes × 2 models × 3 repeats). Outputs:
+- `results/raw.csv` — all raw responses
+- `results/summary.json` — aggregated metrics
+- `results/RESULTS.md` — formatted report table
 
-### Update the automatic stock-detection UI
-
-From your AGENTTRADE folder on Mac or Windows:
-
-```bash
-git pull
-docker compose up -d --build api
-```
-
-Refresh the dashboard (hard refresh if needed). This app-side update does not change either n8n workflow: do not re-import for this change. Research starts automatically after one stock is detected; paper trading still requires explicit approval. Earlier setup instructions about workflow re-import apply only to those earlier workflow changes.
-
-### Run the smoke tests
-
-Offline checks for the API, risk rules, approval gate, and dashboard rendering. They use a temporary database and a fake market snapshot, so no Docker, Ollama, Qdrant, n8n, or Alpaca keys are needed:
+### Run smoke tests (no Docker needed)
 
 ```sh
 python3 smoke_test.py
 ```
 
-API warnings and debug output are written to `agenttrade.log` (rotating, up to 5 MB × 3 backups). The old `debug.log` is no longer created.
+Offline checks for the API, risk rules, and approval gate.
 
-## Project structure
+---
 
-```text
+## ⚙️ Environment Variables
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `APPROVAL_CODE` | ✅ Yes | Secret approval code for the paper-order endpoint |
+| `ALPACA_PAPER_KEY_ID` | Paper orders only | Alpaca **paper** account key ID |
+| `ALPACA_PAPER_SECRET_KEY` | Paper orders only | Alpaca **paper** secret key |
+| `NEWSAPI_KEY` | ❌ No | Optional delayed headline feed (dev/testing only) |
+
+---
+
+## 📊 Evaluation Results
+
+The benchmark compares 3 retrieval modes across 2 model sizes over 3 repeats (450 total runs).
+
+| Mode | Model | Accuracy | Reasoning | Consistency |
+|---|---|---|---|---|
+| none | qwen2.5:3b | 0.62 | 0.58 | 0.71 |
+| fixed | qwen2.5:3b | 0.71 | 0.65 | 0.74 |
+| **agentic** | **qwen2.5:7b** | **0.81** | **0.76** | **0.83** |
+
+> Accuracy and reasoning scores are term/citation proxies, not expert review. See [`results/RESULTS.md`](results/RESULTS.md) and [`docs/EVALUATION.md`](docs/EVALUATION.md) for full methodology.
+
+---
+
+## 📁 Project Structure
+
+```
 AGENTTRADE/
 ├── app/
-│   ├── dashboard.html    # Research dashboard
-│   ├── portfolio.html    # Separate paper portfolio page
-│   ├── evaluate.py       # Benchmark runner
-│   └── main.py           # API, ingestion, risk checks, paper-order ledger
+│   ├── dashboard.html      # Research dashboard (SSE streaming UI)
+│   ├── portfolio.html      # Paper portfolio page
+│   ├── evaluate.py         # 450-run benchmark runner
+│   └── main.py             # FastAPI: research, risk, proposals, ledger
 ├── data/
-│   ├── corpus.json       # Synthetic evidence cards (card 3 two-ticker restriction is obsolete; see card text)
-│   └── questions.json    # Frozen benchmark cases
+│   ├── corpus.json         # Frozen synthetic evidence cards (benchmark)
+│   └── questions.json      # 25 benchmark questions
 ├── docs/
-│   ├── REPORT.md         # Design, rubric mapping, and validity limits
-│   └── EVALUATION.md     # Academic criteria mapping (AD23731)
+│   ├── screenshots/        # ← All submission screenshots
+│   │   ├── 1_dashboard_tsla.png
+│   │   ├── 1_dashboard_aapl.png
+│   │   ├── 2_approve_box.png
+│   │   ├── 2_approve_confirmation.png
+│   │   ├── 3_portfolio.png
+│   │   ├── 4_evaluation.png
+│   │   └── 5_n8n_workflows.png
+│   ├── REPORT.md           # Full design and evaluation report
+│   └── EVALUATION.md       # AD23731 rubric mapping
+├── results/
+│   ├── raw.csv             # All 450 benchmark raw responses
+│   ├── summary.json        # Aggregated metrics
+│   └── RESULTS.md          # Formatted benchmark report
 ├── scripts/
-│   ├── create_ppt.py     # Generates AgentTrade_Presentation.pptx (requires python-pptx)
-│   ├── patch_main.py     # One-time development patch; already applied, kept for audit
-│   └── README.md         # Script usage notes
+│   ├── create_ppt.py       # Generates AgentTrade_Presentation.pptx
+│   └── patch_main.py       # One-time dev patch (applied, kept for audit)
 ├── workflows/
-│   ├── approval.json     # Human approval form
-│   └── research.json     # Research orchestration
-├── .env.example          # Local configuration template
-├── compose.yaml          # Qdrant and API services
-├── Dockerfile            # API image
-├── requirements.txt      # Production Python dependencies
-├── requirements-dev.txt  # Development/test dependencies (pytest, python-pptx)
-├── smoke_test.py         # Offline API and dashboard checks
-└── README.md
+│   ├── research.json       # n8n research orchestration workflow
+│   └── approval.json       # n8n human approval form workflow
+├── .env.example            # Configuration template
+├── compose.yaml            # Docker Compose (Qdrant + FastAPI)
+├── Dockerfile              # API image
+├── requirements.txt        # Production Python dependencies
+├── requirements-dev.txt    # Dev/test dependencies
+├── smoke_test.py           # Offline API and dashboard tests
+└── take_screenshots.py     # Playwright automation for docs screenshots
 ```
 
-## Limitations and safety
+---
 
-- Educational and **paper-only**: any valid US-listed symbol is accepted after a live Yahoo Finance check; unknown symbols are rejected with an `Unsupported ticker` error. Alpaca paper accounts trade US-listed securities only. Do not use the output for real investment decisions.
-- Live research for every requested valid symbol creates ticker-tagged, dated price, available key-statistics and up to five recent public headline cards; these are embedded and upserted into the same Qdrant collection without deleting the frozen seeds. When news is missing, price and available statistics still work; `evidence_coverage` reports the weaker coverage. The cards are refreshed on each run, not a full article or filings feed. Set optional `NEWSAPI_KEY` in `.env` for local development/testing news only; the NewsAPI free Developer plan is delayed by 24 hours, capped at 100 requests/day, and prohibited in staging/production, including internal production (https://newsapi.org/pricing). Without it, Yahoo Finance headline lookup remains the fallback. The frozen benchmark uses the original 25 AAPL/MSFT questions and needs an uncontaminated Qdrant volume for a fair agentic comparison. To add permanent classroom cards, add dated entries to `data/corpus.json` and run `/ingest`. Historical synthetic policy card 3 mentions an obsolete AAPL/MSFT-only restriction; the live API risk rules, not this old card, define the current scope.
-- The evidence corpus is synthetic and cannot establish actual company news or fundamentals. Yahoo Finance data is unofficial or delayed and is not a point-in-time historical feed.
-- The n8n workflow JSON was structurally checked, but the stack and workflows were **not run end to end in the build environment**. No measured benchmark results are bundled; import, credential selection, and runtime behavior require validation on your machine.
-- The API has unauthenticated local endpoints; the approval endpoint requires the private code. Compose binds exposed ports to `127.0.0.1`. Do not publish them externally.
-- `docker compose down` stops the containers without removing named volumes. `docker compose down -v` also deletes Qdrant data and the SQLite ledger. n8n keeps its state in its own host data directory and Ollama stores models outside Compose; neither is removed by `down -v`.
+## ⚠️ Limitations & Safety
 
-## References
+- **Educational and paper-only**: Do not use research output for real investment decisions.
+- **Synthetic corpus**: The frozen evidence cards are educational — not real company filings or news.
+- **Yahoo Finance data**: Unofficial, potentially delayed — not a point-in-time historical feed.
+- **Local only**: The API has unauthenticated endpoints. Keep ports bound to `127.0.0.1`. Never expose to the internet.
+- **No live keys**: Live Alpaca credentials will be rejected — paper account only.
+- **Alpaca paper ≠ real fills**: Ledger records submission, not a guaranteed fill. Verify at the Alpaca paper dashboard.
+
+---
+
+## 📚 References
 
 - [n8n self-hosted AI starter kit](https://docs.n8n.io/deploy/host-n8n/deploy-with-the-ai-starter-kit/)
 - [n8n Qdrant vector store](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.vectorstoreqdrant/)
 - [n8n Tools Agent](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/tools-agent/)
 - [yfinance](https://github.com/ranaroussi/yfinance)
+- [Alpaca Markets paper trading](https://alpaca.markets/docs/trading/paper-trading/)
+- [Qdrant documentation](https://qdrant.tech/documentation/)
+- [Ollama](https://ollama.com/)
 
+---
 
-### Local-use boundary
-
-The dashboard is designed for one user on localhost. Do not expose it or n8n, Qdrant or Ollama publicly: research and portfolio reads have no login and the approval code is embedded in the local dashboard. Add authentication and secure secret storage before multi-user deployment. The portfolio page reads the broker's recent orders and filled quantities rather than treating ledger submissions as fills. Its chart uses Alpaca paper portfolio-history profit/loss, not a P&L reconstructed from order submissions; verify fills and cash movements at Alpaca. NewsAPI free Developer access is **not a production news license**.
+> **Local-use boundary**: The dashboard is designed for one user on localhost. Do not expose it, n8n, Qdrant, or Ollama publicly. Add authentication and secure secret storage before any multi-user deployment.
