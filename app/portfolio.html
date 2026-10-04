@@ -21,7 +21,7 @@ button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16, 185,
 .result { background: rgba(24, 24, 27, 0.4) !important; border-color: rgba(39, 39, 42, 0.8) !important; border-radius: 12px !important; }
 .nav a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 0.05em; }
 .nav a:hover, .nav a[aria-current="page"] { color: var(--fg); text-shadow: 0 0 12px rgba(255,255,255,0.3); }
-</style></head><body><header><div class="top"><div class="brand" style="background: linear-gradient(90deg, #10b981, #3b82f6); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">AGENTTRADE</div><nav class="nav" aria-label="Main navigation"><a href="/">Research</a><a href="/portfolio" aria-current="page">Portfolio</a><a href="/architecture">Architecture</a><a href="/evaluation">AD23731 Evaluation</a></nav><span class="chip">Paper environment</span></div></header>
+</style></head><body><header><div class="top"><div class="brand" style="background: linear-gradient(90deg, #10b981, #3b82f6); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">AGENTTRADE</div><nav class="nav" aria-label="Main navigation"><a href="/">Research</a><a href="/portfolio" aria-current="page">Portfolio</a><a href="/architecture">Architecture</a><a href="/evaluation">AD23731 Evaluation</a></nav><div style="display:flex;align-items:center;gap:12px;"><span class="chip">Paper environment</span><button id="logout-btn" style="display:none; padding: 4px 10px; font-size: 11px; margin: 0;" class="ghost">Logout</button></div></div></header>
 <main><div class="heading"><div><div class="eyebrow">Alpaca paper / account view</div><h1>Paper portfolio</h1><p class="intro">Broker-reported account values, open positions and recent orders. No live trading.</p></div><button type="button" id="refresh">Refresh portfolio</button></div>
 <!-- TradingView Widget BEGIN -->
 <div class="tradingview-widget-container" style="margin-bottom: 24px; border-radius: 12px; overflow: hidden; border: 1px solid rgba(39, 39, 42, 0.8);">
@@ -64,6 +64,35 @@ const metrics='<div class="metrics"><div class="metric"><span>Account equity</sp
 const positions=(p.positions||[]).length?'<div class="tablewrap"><table><thead><tr><th>Symbol</th><th class="num">Quantity</th><th class="num">Market value</th><th class="num">Unrealized P&amp;L</th></tr></thead><tbody>'+p.positions.map(q=>'<tr><td data-label="Symbol" class="symbol">'+esc(q.symbol)+'</td><td data-label="Quantity" class="num">'+esc(q.qty)+'</td><td data-label="Market value" class="num">'+money(q.market_value)+'</td><td data-label="Unrealized P&L" class="num">'+signed(q.unrealized_pl)+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">No open paper positions.</div>';
 const orders=(p.orders||[]).length?'<div class="tablewrap"><table><thead><tr><th>Submitted</th><th>Symbol</th><th>Side</th><th class="num">Ordered</th><th class="num">Filled</th><th class="num">Avg. fill</th><th>Status</th></tr></thead><tbody>'+p.orders.map(o=>'<tr><td data-label="Submitted">'+date(o.submitted_at)+'</td><td data-label="Symbol" class="symbol">'+esc(o.symbol)+'</td><td data-label="Side">'+esc(o.side)+'</td><td data-label="Ordered" class="num">'+esc(o.qty)+'</td><td data-label="Filled" class="num">'+esc(o.filled_qty)+'</td><td data-label="Avg. fill" class="num">'+(o.filled_avg_price==null?'—':money(o.filled_avg_price))+'</td><td data-label="Status"><span class="status '+(o.status==='filled'?'filled':'')+'">'+esc(o.status.replace(/_/g,' '))+'</span></td></tr>').join('')+'</tbody></table></div>':'<div class="empty">No recent paper orders.</div>';
 $('content').innerHTML=metrics+'<section class="section"><h2>Profit/loss over time</h2><p class="sub">Last month · Alpaca paper portfolio history</p>'+chart(p.profit_loss_history||[])+'</section><section class="section"><h2>Current positions</h2><p class="sub">Open holdings from the broker, not inferred from proposals.</p>'+positions+'</section><section class="section"><h2>Recent paper orders</h2><p class="sub">Last 20 broker orders. Submitted orders are not necessarily filled.</p>'+orders+'<p class="caption">'+esc(p.note||'')+'</p></section>'}
-async function refresh(){const btn=$('refresh');btn.disabled=true;btn.textContent='Refreshing...';$('notice').textContent='Fetching broker data...';try{const r=await fetch('/api/portfolio',{cache:'no-store'});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(typeof d.detail==='string'?d.detail:'Broker data unavailable');render(d);$('notice').textContent=d.configured?'Broker data refreshed.':'Paper account not configured.'}catch(e){$('notice').innerHTML='<div class="error">'+esc(e.message)+'</div>';$('content').innerHTML=''}finally{btn.disabled=false;btn.textContent='Refresh portfolio'}}
-$('refresh').addEventListener('click',refresh);refresh();
+async function refresh() {
+    const btn=$('refresh'); btn.disabled=true; btn.textContent='Refreshing...'; $('notice').textContent='Fetching broker data...';
+    try {
+        const u = localStorage.getItem('agenttrade_user') || '';
+        const p = localStorage.getItem('agenttrade_pass') || '';
+        const qs = '?username=' + encodeURIComponent(u) + '&password=' + encodeURIComponent(p);
+        const r = await fetch('/api/portfolio' + qs, {cache:'no-store'});
+        const d = await r.json().catch(()=>({}));
+        if(!r.ok) throw Error(typeof d.detail==='string'?d.detail:'Broker data unavailable');
+        render(d);
+        $('notice').textContent=d.configured?'Broker data refreshed.':'Paper account not configured.';
+    } catch(e) {
+        $('notice').innerHTML='<div class="error">'+esc(e.message)+'</div>';
+        $('content').innerHTML='';
+    } finally {
+        btn.disabled=false;
+        btn.textContent='Refresh portfolio';
+    }
+}
+function checkLogout() {
+    const btn = document.getElementById('logout-btn');
+    if(btn) {
+        btn.style.display = localStorage.getItem('agenttrade_user') ? 'block' : 'none';
+        btn.onclick = () => {
+            localStorage.removeItem('agenttrade_user');
+            localStorage.removeItem('agenttrade_pass');
+            window.location.reload();
+        };
+    }
+}
+$('refresh').addEventListener('click',refresh);refresh();checkLogout();
 </script></body></html>

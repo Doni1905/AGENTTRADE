@@ -144,7 +144,8 @@
   
   .diagram {
       width: 100%;
-      height: 300px;
+      min-height: 400px;
+      padding: 40px 0;
       background: rgba(0,0,0,0.3);
       border-radius: 12px;
       border: 1px solid var(--border);
@@ -160,11 +161,22 @@
       opacity: 0;
       animation: fadeUp 0.8s ease forwards 0.4s;
   }
+  .diagram .mermaid {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+  }
+  .diagram .mermaid svg {
+      width: 100%;
+      max-width: 900px;
+      height: auto !important;
+  }
   .diagram::before {
       content: '';
       position: absolute;
       inset: 0;
       background: repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 1px, transparent 1px, transparent 10px);
+      z-index: -1;
   }
 
   @keyframes fadeUp {
@@ -197,17 +209,19 @@
     <div class="diagram" style="background: transparent; border: none; overflow: visible;">
         <div class="mermaid">
         graph LR
-            classDef default fill:rgba(24,24,27,0.6),stroke:rgba(39,39,42,0.8),stroke-width:2px,color:#fafafa,rx:8px
-            classDef highlight fill:rgba(16,185,129,0.1),stroke:#10b981,stroke-width:2px,color:#10b981,rx:8px
+            classDef standard fill:#18181b99,stroke:#27272acc,stroke-width:2px,color:#fafafa,rx:8px
+            classDef highlight fill:#10b9811a,stroke:#10b981,stroke-width:2px,color:#10b981,rx:8px
             
             U((User)) -->|HTTP/REST| F[FastAPI Backend]
             F -->|Webhook| N{n8n Orchestrator}
             F -->|REST| A[Alpaca Trading]
             
-            N <-->|Search/Ingest| Q[(Qdrant Vector DB)]
-            N <-->|Prompt/Evaluate| O[Local Ollama Qwen]
+            N -->|Search/Ingest| Q[(Qdrant Vector DB)]
+            Q -->|Results| N
+            N -->|Prompt| O[Local Ollama Qwen]
+            O -->|Evaluate| N
             
-            class U,A default
+            class U,A standard
             class F,N,Q,O highlight
         </div>
     </div>
