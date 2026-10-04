@@ -1,7 +1,7 @@
 """Deterministic market data, retrieval ingestion and Alpaca paper-only orders."""
 import logging
 import logging.handlers
-import os, json, sqlite3, time, hashlib, math, re, secrets, threading
+import os, json, sqlite3, time, hashlib, math, re, secrets, threading, uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Literal
@@ -9,8 +9,23 @@ import httpx
 import yfinance as yf
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
+
+
+def _hash_password(password: str) -> str:
+    """PBKDF2-SHA256 with a fixed per-install salt stored in the env.
+
+    For a local paper-trading demo this is sufficient; a real system should
+    use bcrypt/argon2 with a per-user salt persisted alongside the hash.
+    """
+    salt = os.getenv("PASSWORD_SALT", "agenttrade-local-salt-v1")
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 260000)
+    return dk.hex()
+
+
+def _verify_password(plain: str, stored: str) -> bool:
+    return secrets.compare_digest(_hash_password(plain), stored)
 
 # ---------------------------------------------------------------------------
 # Logging — rotating file (5 MB × 3 backups) + stderr; replaces open("debug.log").
@@ -200,7 +215,8 @@ class LoginRequest(BaseModel):
 def register(req: LoginRequest):
     with conn() as c:
         try:
-            c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (req.username, req.password))
+            c.execute("INSERT INTO users (username, password) VALUES (?, ?)",
+                      (req.username, _hash_password(req.password)))
             return {"status": "success", "username": req.username}
         except sqlite3.IntegrityError:
             raise HTTPException(409, "Username already exists")
@@ -214,9 +230,9 @@ def login(req: LoginRequest):
         except sqlite3.OperationalError:
             pass
         row = c.execute("SELECT password, alpaca_key FROM users WHERE username=?", (req.username,)).fetchone()
-        if row and row["password"] == req.password:
+        if row and _verify_password(req.password, row["password"]):
             return {"status": "success", "username": req.username, "has_keys": bool(row["alpaca_key"])}
-            
+
     code = os.getenv("APPROVAL_CODE", "")
     if code and secrets.compare_digest(req.password, code):
         return {"status": "success", "username": req.username, "has_keys": True}
@@ -232,9 +248,10 @@ class SetKeysRequest(BaseModel):
 def set_keys(req: SetKeysRequest):
     with conn() as c:
         row = c.execute("SELECT password FROM users WHERE username=?", (req.username,)).fetchone()
-        if not row or row["password"] != req.password:
+        if not row or not _verify_password(req.password, row["password"]):
             raise HTTPException(401, "Invalid credentials")
-        c.execute("UPDATE users SET alpaca_key=?, alpaca_secret=? WHERE username=?", (req.alpaca_key, req.alpaca_secret, req.username))
+        c.execute("UPDATE users SET alpaca_key=?, alpaca_secret=? WHERE username=?",
+                  (req.alpaca_key, req.alpaca_secret, req.username))
     return {"status": "success"}
 
 @app.post("/proposal")
@@ -266,13 +283,13 @@ def alpaca_headers(username: str = "", password: str = ""):
     if username:
         with conn() as c:
             row = c.execute("SELECT password, alpaca_key, alpaca_secret FROM users WHERE username=?", (username,)).fetchone()
-            if row and row["password"] == password:
+            if row and _verify_password(password, row["password"]):
                 key = row["alpaca_key"]
                 secret = row["alpaca_secret"]
-    
+
     key = key or os.getenv("ALPACA_PAPER_KEY_ID", "")
     secret = secret or os.getenv("ALPACA_PAPER_SECRET_KEY", "")
-    
+
     if not key or not secret:
         raise HTTPException(503, "Alpaca paper keys not configured for this user; no order placed")
     return {"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret}
@@ -332,11 +349,14 @@ def _approve_locked(a:Approval):
     if a.username:
         with conn() as c:
             u_row = c.execute("SELECT password FROM users WHERE username=?", (a.username,)).fetchone()
-            if not u_row or u_row["password"] != a.password:
-                raise HTTPException(403, "Invalid user credentials")
+        if not u_row or not _verify_password(a.password, u_row["password"]):
+            raise HTTPException(403, "Invalid user credentials")
+        # Ownership check: only the proposing user may approve their own proposal.
+        if row["username"] and row["username"] != a.username:
+            raise HTTPException(403, "You may only approve proposals you submitted")
     else:
         code = os.getenv("APPROVAL_CODE", "")
-        if not code or not secrets.compare_digest(a.password, code): 
+        if not code or not secrets.compare_digest(a.password, code):
             raise HTTPException(403, "Approval code required")
     if a.decision == "reject":
         with conn() as c: c.execute("UPDATE proposals SET status='rejected' WHERE id=? AND status='pending'",(a.proposal_id,))
@@ -639,63 +659,132 @@ def prepare(p:AnalysisInput):
             "warning":("Frozen benchmark: educational synthetic cards only; historical policy card 3 is not current trading policy." if p.evaluation else
             "Live cards include delayed public data; news is headline-only. Synthetic policy cards are historical classroom examples and card 3's AAPL/MSFT restriction is obsolete. Cite live sources for current facts. " + (coverage['quality_note'] if coverage else "No retrieval in this mode."))}
 
+def _clean_llm_markdown(text: str) -> str:
+    """Strip prompt instructions that the LLM may have echoed back verbatim."""
+    if not text:
+        return ""
+    # Remove explicit prompt-leak patterns
+    text = re.sub(r"(?i)Explain\s+(?:any\s+)?technical\s+terms(?:\s+in\s+plain\s+words)?:?", "", text)
+    text = re.sub(r"(?i)Technical\s+details:\s*Start\s+exactly\s+with.*$", "", text, flags=re.M)
+    text = re.sub(r"(?i)CRITICAL\s+INSTRUCTION:.*$", "", text, flags=re.M)
+    text = re.sub(r"(?i)Produce\s+the\s+final\s+corrected\s+answer.*$", "", text, flags=re.M)
+    text = re.sub(r"(?i)<Extremely short.*?>", "", text)
+    text = re.sub(r"(?i)<evidence,\s*dates,\s*citations>", "", text)
+    lines = text.split("\n")
+    cleaned = [
+        line for line in lines
+        if not re.match(
+            r"^(?:\*\*|#+)?\s*(?:Simple\s+summary|Technical\s+details|Explain\s+technical\s+terms)\s*:?(?:\*\*)?$",
+            line.strip(), re.I
+        )
+    ]
+    res = "\n".join(cleaned)
+    res = re.sub(r"^(?:\*\*|#+)?\s*(?:Simple\s+summary|Technical\s+details)\s*:?(?:\*\*)?\s*", "", res, flags=re.I)
+    return re.sub(r"\n{3,}", "\n\n", res).strip()
+
+
+# ---------------------------------------------------------------------------
+# In-memory store for async research job status (keyed by run_id).
+# A persistent store (Redis/SQLite) would be needed for multi-worker deployments.
+# ---------------------------------------------------------------------------
+_RESEARCH_JOBS: dict[str, dict] = {}
+_RESEARCH_JOBS_LOCK = threading.Lock()
+
+
 @app.post("/research")
-def research(p:AnalysisInput):
-    if not p.question.strip() or len(p.question.strip())<5: raise HTTPException(422,"Enter a research question of at least five non-space characters")
+def research(p: AnalysisInput):
+    if not p.question.strip() or len(p.question.strip()) < 5:
+        raise HTTPException(422, "Enter a research question of at least five non-space characters")
     if p.ticker is not None:
-        ticker=p.ticker.strip().upper()
-        if ticker and not check_symbol_format(ticker): raise unsupported_ticker(p.ticker)
-        name=COMPANY_NAMES.get(ticker, ticker) if ticker else None
+        ticker = p.ticker.strip().upper()
+        if ticker and not check_symbol_format(ticker):
+            raise unsupported_ticker(p.ticker)
+        name = COMPANY_NAMES.get(ticker, ticker) if ticker else None
     else:
-        ticker,name=resolve_question_ticker(p.question)
-    
-    payload=research_model_payload(p)
-    payload["ticker"]=ticker
+        ticker, name = resolve_question_ticker(p.question)
+
+    run_id = uuid.uuid4().hex
+    payload = research_model_payload(p)
+    payload["ticker"] = ticker
+
+    with _RESEARCH_JOBS_LOCK:
+        _RESEARCH_JOBS[run_id] = {"status": "running", "started": datetime.now(timezone.utc).isoformat()}
+
     try:
         with httpx.Client(timeout=300) as client:
-            r=client.post(N8N+"/webhook/agenttrade-analyze",json=payload)
+            r = client.post(N8N + "/webhook/agenttrade-analyze", json=payload)
             r.raise_for_status()
-            result=r.json()
-            if not isinstance(result, dict) or not isinstance(result.get("answer"),str):
-                raise HTTPException(502,"Research returned an unexpected answer. Check the n8n workflow output.")
-            match=re.search(r"(?:\*\*|#+)?\s*Simple summary\s*:?(?:\*\*)?\s*(.+?)\n+\s*(?:\*\*|#+)?\s*Technical[^\n:]*:?(?:\*\*)?\s*(.+)\s*",result["answer"],re.I|re.S)
-            if not match or not match.group(1).strip() or not match.group(2).strip():
-                logger.warning("Research answer missing expected format. RAW_ANSWER: %r", result.get("answer"))
-                summary = "Analysis Complete"
-                details = result.get("answer", "").strip()
-            else:
-                summary,details=match.group(1).strip(),match.group(2).strip()
-            
-            # Helper to strip prompt leaks and repetitive section headers
-            def clean_llm_markdown(text: str) -> str:
-                if not text: return ""
-                text = re.sub(r"(?i)Explain\s+(?:any\s+)?technical\s+terms(?:\s+in\s+plain\s+words)?:?", "", text)
-                text = re.sub(r"(?i)Technical\s+details:\s*Start\s+exactly\s+with.*$", "", text)
-                text = re.sub(r"(?i)CRITICAL\s+INSTRUCTION:.*$", "", text)
-                text = re.sub(r"(?i)Produce\s+the\s+final\s+corrected\s+answer.*$", "", text)
-                lines = text.split("\n")
-                cleaned = []
-                for line in lines:
-                    stripped = line.strip()
-                    if re.match(r"^(?:\*\*|#+)?\s*(?:Simple\s+summary|Technical\s+details|Explain\s+technical\s+terms)\s*:?(?:\*\*)?$", stripped, re.I):
-                        continue
-                    cleaned.append(line)
-                res = "\n".join(cleaned)
-                res = re.sub(r"^(?:\*\*|#+)?\s*(?:Simple\s+summary|Technical\s+details)\s*:?(?:\*\*)?\s*", "", res, flags=re.I)
-                return re.sub(r"\n{3,}", "\n\n", res).strip()
+            result = r.json()
 
-            summary = clean_llm_markdown(summary)
-            details = clean_llm_markdown(details)
-            
-            result["simple_summary"]=summary
-            result["technical_detail"]=details
-            result["ticker"]=ticker
-            result["company_name"]=name
-            return result
+        raw_answer = result.get("answer") if isinstance(result, dict) else None
+        if not isinstance(raw_answer, str) or not raw_answer.strip():
+            # Surface the real model error rather than masking it.
+            model_error = result.get("error") or result.get("message") or "No answer text returned" if isinstance(result, dict) else "Unexpected non-dict response"
+            logger.error("Research run %s: workflow returned no answer. model_error=%r raw=%r", run_id, model_error, result)
+            with _RESEARCH_JOBS_LOCK:
+                _RESEARCH_JOBS[run_id] = {"status": "error", "error": model_error}
+            raise HTTPException(502, f"Research workflow returned no answer: {model_error}. Check the n8n execution log.")
+
+        # Parse structured sections; fall back to full answer rather than hiding it.
+        match = re.search(
+            r"(?:\*\*|#+)?\s*Simple summary\s*:?(?:\*\*)?\s*(.+?)\n+\s*(?:\*\*|#+)?\s*Technical[^\n:]*:?(?:\*\*)?\s*(.+)\s*",
+            raw_answer, re.I | re.S
+        )
+        if not match or not match.group(1).strip() or not match.group(2).strip():
+            logger.warning("Research run %s: answer missing expected Simple/Technical sections. RAW_ANSWER: %r", run_id, raw_answer)
+            summary = "Analysis Complete"
+            details = raw_answer.strip()
+        else:
+            summary, details = match.group(1).strip(), match.group(2).strip()
+
+        summary = _clean_llm_markdown(summary)
+        details = _clean_llm_markdown(details)
+
+        result["run_id"] = run_id
+        result["raw_answer"] = raw_answer          # preserved for debugging and evaluation traces
+        result["simple_summary"] = summary
+        result["technical_detail"] = details
+        result["ticker"] = ticker
+        result["company_name"] = name
+
+        with _RESEARCH_JOBS_LOCK:
+            _RESEARCH_JOBS[run_id] = {"status": "done", "ticker": ticker, "company_name": name}
+
+        return result
+
     except httpx.HTTPStatusError as exc:
-        raise HTTPException(503,"Research workflow rejected the request. Check the n8n execution log and imported workflow settings.") from exc
+        with _RESEARCH_JOBS_LOCK:
+            _RESEARCH_JOBS[run_id] = {"status": "error", "error": str(exc)}
+        raise HTTPException(503, "Research workflow rejected the request. Check the n8n execution log and imported workflow settings.") from exc
     except (httpx.RequestError, ValueError) as exc:
-        raise HTTPException(503,"Local research workflow unavailable. Check that n8n is running and the workflow is published.") from exc
+        with _RESEARCH_JOBS_LOCK:
+            _RESEARCH_JOBS[run_id] = {"status": "error", "error": str(exc)}
+        raise HTTPException(503, "Local research workflow unavailable. Check that n8n is running and the workflow is published.") from exc
+
+
+@app.get("/research/status/{run_id}")
+def research_status(run_id: str):
+    """Poll the real execution status of a research run by its run_id."""
+    with _RESEARCH_JOBS_LOCK:
+        job = _RESEARCH_JOBS.get(run_id)
+    if job is None:
+        raise HTTPException(404, "Unknown run_id; it may have been discarded after restart")
+    return job
+
+
+@app.get("/research/stream/{run_id}")
+def research_stream(run_id: str):
+    """Server-Sent Events endpoint for real-time research execution status."""
+    def event_generator():
+        for _ in range(120):  # max 60 s of 0.5s ticks
+            with _RESEARCH_JOBS_LOCK:
+                job = _RESEARCH_JOBS.get(run_id, {"status": "unknown"})
+            yield f"data: {json.dumps(job)}\n\n"
+            if job.get("status") in ("done", "error"):
+                return
+            time.sleep(0.5)
+        yield f"data: {json.dumps({'status': 'timeout'})}\n\n"
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 

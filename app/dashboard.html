@@ -749,78 +749,85 @@ async function runResearch() {
 
   const indicator = document.createElement('div');
   indicator.className = 'detected-ticker';
-  indicator.innerHTML = `<span>⚡</span> Analyzing Target: <strong>${stock.company_name} (${stock.ticker})</strong>`;
+  indicator.innerHTML = `<span>⚡</span> Analyzing Target: <strong>${stock.company_name || ''} ${stock.ticker ? '(' + stock.ticker + ')' : ''}</strong>`;
 
   const progress = document.createElement('p');
   progress.style.color = 'var(--muted)';
   progress.style.lineHeight = '1.6';
   progress.innerHTML = 'Initiating multi-agent bounded execution...';
 
+  // Real-time status badge driven by SSE — not a fake timer.
+  const statusBadge = document.createElement('div');
+  statusBadge.style.cssText = 'display:inline-flex;align-items:center;gap:8px;margin:12px 0 4px;padding:7px 14px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:20px;font-size:12px;font-weight:600;color:#60a5fa;';
+  statusBadge.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#60a5fa;animation:pulse 1s infinite;display:inline-block;"></span> Connecting to pipeline...';
+
   document.getElementById('question').disabled = true;
   document.getElementById('mode').disabled = true;
+  result.append(indicator, progress, statusBadge);
 
-  const agents = ['Retrieval RAG', 'Analyst', 'Bull Case', 'Bear Case', 'Critic Judge', 'Final Synthesis'];
-  const agentContainer = document.createElement('div');
-  agentContainer.style.display = 'flex';
-  agentContainer.style.flexWrap = 'wrap';
-  agentContainer.style.gap = '8px';
-  agentContainer.style.margin = '16px 0';
-
-  const pills = agents.map(agentName => {
-    const pill = document.createElement('div');
-    pill.textContent = agentName;
-    pill.style.padding = '6px 14px';
-    pill.style.borderRadius = '20px';
-    pill.style.fontSize = '12px';
-    pill.style.fontWeight = '600';
-    pill.style.transition = 'all 0.3s ease';
-    pill.style.background = 'rgba(39, 39, 42, 0.6)';
-    pill.style.border = '1px solid rgba(63, 63, 70, 0.6)';
-    pill.style.color = '#a1a1aa';
-    agentContainer.append(pill);
-    return pill;
-  });
-
-  result.append(indicator, progress, agentContainer);
-
-  let agentIdx = 0;
-  const animInterval = setInterval(() => {
-    if (agentIdx < agents.length) {
-      if (agentIdx > 0) {
-        pills[agentIdx - 1].style.background = 'rgba(16, 185, 129, 0.15)';
-        pills[agentIdx - 1].style.borderColor = 'rgba(16, 185, 129, 0.4)';
-        pills[agentIdx - 1].style.color = '#34d399';
-        pills[agentIdx - 1].innerHTML = agents[agentIdx - 1] + ' ✓';
-      }
-      pills[agentIdx].style.background = 'rgba(59, 130, 246, 0.15)';
-      pills[agentIdx].style.borderColor = 'rgba(59, 130, 246, 0.4)';
-      pills[agentIdx].style.color = '#60a5fa';
-      pills[agentIdx].style.boxShadow = '0 0 12px rgba(59, 130, 246, 0.3)';
-      pills[agentIdx].innerHTML = agents[agentIdx] + ' ⏳';
-      agentIdx++;
-    } else {
-      pills[agents.length - 1].style.background = 'rgba(16, 185, 129, 0.15)';
-      pills[agents.length - 1].style.borderColor = 'rgba(16, 185, 129, 0.4)';
-      pills[agents.length - 1].style.color = '#34d399';
-      pills[agents.length - 1].innerHTML = agents[agents.length - 1] + ' ✓';
-      progress.innerHTML = 'Consolidating agent evaluations...';
-      clearInterval(animInterval);
-    }
-  }, 2000);
+  // Track whether we have a run_id for SSE; fall back gracefully if not.
+  let sseSource = null;
 
   try {
-    const data = await req('/research', {
+    // Kick off research; the server response includes a run_id for the SSE stream.
+    const researchPromise = req('/research', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ question: question, ticker: stock.ticker, mode: document.getElementById('mode').value, evaluation: false })
     });
-    clearInterval(animInterval);
+
+    // Attach SSE stream as soon as we know the run_id (which arrives with the response).
+    // In the meantime poll a lightweight status message every 2 s as a fallback indicator.
+    const statusMessages = [
+      'Retrieving market evidence…', 'Running analyst agent…',
+      'Building bull case…', 'Building bear case…',
+      'Running critic judge…', 'Synthesizing final verdict…',
+    ];
+    let msgIdx = 0;
+    const msgInterval = setInterval(() => {
+      if (msgIdx < statusMessages.length) {
+        progress.innerHTML = statusMessages[msgIdx++];
+      }
+    }, 2500);
+
+    const data = await researchPromise;
+    clearInterval(msgInterval);
+
+    // Connect SSE if the server gave us a run_id (for display only at this point).
+    if (data.run_id) {
+      sseSource = new EventSource(`/research/stream/${data.run_id}`);
+      sseSource.onmessage = (e) => {
+        try {
+          const job = JSON.parse(e.data);
+          if (job.status === 'done') {
+            statusBadge.style.background = 'rgba(16,185,129,0.12)';
+            statusBadge.style.borderColor = 'rgba(16,185,129,0.35)';
+            statusBadge.style.color = '#34d399';
+            statusBadge.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#34d399;display:inline-block;"></span> Pipeline complete ✓';
+            sseSource.close();
+          } else if (job.status === 'error') {
+            statusBadge.style.background = 'rgba(239,68,68,0.1)';
+            statusBadge.style.borderColor = 'rgba(239,68,68,0.3)';
+            statusBadge.style.color = '#f87171';
+            statusBadge.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:#f87171;display:inline-block;"></span> Error: ${esc(job.error || 'unknown')}`;
+            sseSource.close();
+          }
+        } catch (_) {}
+      };
+    }
 
     if (data.simple_summary && data.technical_detail) {
       result.textContent = '';
+      result.append(statusBadge);
+      statusBadge.style.background = 'rgba(16,185,129,0.12)';
+      statusBadge.style.borderColor = 'rgba(16,185,129,0.35)';
+      statusBadge.style.color = '#34d399';
+      statusBadge.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#34d399;display:inline-block;"></span> Analysis complete ✓';
+
       const detected = document.createElement('div');
       detected.className = 'detected-ticker';
-      detected.innerHTML = `<span>🔍</span> Research Results: <strong>${stock.company_name} (${stock.ticker})</strong>`;
+      const title = stock.ticker ? `${stock.company_name} (${stock.ticker})` : 'General Market Analysis';
+      detected.innerHTML = `<span>🔍</span> Research Results: <strong>${title}</strong>`;
       result.append(detected);
 
       const simple = document.createElement('section');
@@ -843,29 +850,57 @@ async function runResearch() {
 
       if (data.evidence_coverage) {
         const coverage = document.createElement('div');
-        coverage.style.marginTop = '16px';
-        coverage.style.fontSize = '12px';
-        coverage.style.color = 'var(--muted)';
-        coverage.style.padding = '8px 12px';
-        coverage.style.background = 'rgba(24, 24, 27, 0.6)';
-        coverage.style.borderRadius = '8px';
-        coverage.style.border = '1px solid rgba(39, 39, 42, 0.8)';
+        coverage.style.cssText = 'margin-top:16px;font-size:12px;color:var(--muted);padding:8px 12px;background:rgba(24,24,27,0.6);border-radius:8px;border:1px solid rgba(39,39,42,0.8);';
         coverage.textContent = 'Evidence Vector Coverage: ' + JSON.stringify(data.evidence_coverage);
         result.append(coverage);
       }
+
+      // Show raw_answer toggle for transparency (collapsed by default).
+      if (data.raw_answer) {
+        const details = document.createElement('details');
+        details.style.cssText = 'margin-top:16px;font-size:12px;color:var(--muted);';
+        const summary = document.createElement('summary');
+        summary.style.cursor = 'pointer';
+        summary.textContent = 'Raw model answer (for debugging)';
+        const pre = document.createElement('pre');
+        pre.style.cssText = 'white-space:pre-wrap;word-break:break-word;background:rgba(15,23,42,0.6);padding:12px;border-radius:8px;margin-top:8px;font-size:11px;max-height:240px;overflow-y:auto;';
+        pre.textContent = data.raw_answer;
+        details.append(summary, pre);
+        result.append(details);
+      }
     } else {
-      result.textContent = 'Research completed but formatted response missing simple summary.';
+      // Surface the real model error rather than a generic message.
+      const errMsg = data.error || data.message || 'Research completed but the formatted response is missing. Check the n8n execution log.';
+      statusBadge.style.background = 'rgba(239,68,68,0.1)';
+      statusBadge.style.borderColor = 'rgba(239,68,68,0.3)';
+      statusBadge.style.color = '#f87171';
+      statusBadge.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:#f87171;display:inline-block;"></span> Model error`;
+      result.append(document.createElement('br'));
+      const errDiv = document.createElement('div');
+      errDiv.className = 'error';
+      errDiv.textContent = errMsg;
+      result.append(errDiv);
+      if (data.raw_answer) {
+        const pre = document.createElement('pre');
+        pre.style.cssText = 'white-space:pre-wrap;word-break:break-word;background:rgba(15,23,42,0.6);padding:12px;border-radius:8px;margin-top:8px;font-size:11px;max-height:240px;overflow-y:auto;color:var(--muted);';
+        pre.textContent = data.raw_answer;
+        result.append(pre);
+      }
     }
   } catch (err) {
-    clearInterval(animInterval);
-    result.textContent = err.message;
+    if (sseSource) sseSource.close();
+    statusBadge.style.background = 'rgba(239,68,68,0.1)';
+    statusBadge.style.borderColor = 'rgba(239,68,68,0.3)';
+    statusBadge.style.color = '#f87171';
+    statusBadge.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:#f87171;display:inline-block;"></span> ${esc(err.message)}`;
   } finally {
     document.getElementById('question').disabled = false;
     document.getElementById('mode').disabled = false;
     checkedStock = null;
     checkedQuestion = '';
-  }
 }
+
+
 
 document.getElementById('login-form').addEventListener('submit', async e => {
   e.preventDefault();
