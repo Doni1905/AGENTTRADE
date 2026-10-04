@@ -51,6 +51,15 @@ QUESTION_TICKER_RE = re.compile(r"(?<![A-Za-z0-9.\-])\$?([A-Z][A-Z0-9.\-]{0,9})(
 CORPUS = Path(__file__).resolve().parent.parent / "data" / "corpus.json"
 
 
+DISCOVERY_RE = re.compile(r"\b(best|top|good|great|which|what|any|recommend\w*|suggest\w*)\b.*\b(stocks?|shares?|equit\w+)\b|\b(stocks?|shares?)\b.*\b(to buy|buy now|buy today|buy right now|to invest)\b|\bwhat (should|can) i buy\b", re.I)
+DISCOVERY_TOP_N = max(1, min(5, int(os.getenv("DISCOVERY_TOP_N", "3"))))
+DISCOVERY_MIN_PRICE = 5.0
+
+def is_discovery_question(question: str) -> bool:
+    """Open-ended 'which stock should I buy' question with no company named."""
+    return bool(DISCOVERY_RE.search(question))
+
+
 def check_symbol_format(ticker: str) -> bool:
     return bool(SYMBOL_RE.fullmatch(ticker))
 
@@ -78,14 +87,6 @@ def resolve_question_ticker(question: str):
         except HTTPException as exc:
             if exc.status_code != 400: raise  # Network/stale data is not "no ticker".
     if not valid:
-        if re.search(r'\b(best|top|buy|recommend|market)\b', question, re.I):
-            try:
-                import yfinance as yf
-                response = yf.screen('undervalued_large_caps')
-                ticker = response['quotes'][0]['symbol']
-                return ticker, COMPANY_NAMES.get(ticker, ticker)
-            except Exception:
-                pass
         return None, None
     if len(valid) > 1:
         raise HTTPException(422, "Which one stock should I analyze? I found: " + ", ".join(valid) + ".")
@@ -581,7 +582,7 @@ def detect_stock(p: DetectionInput):
         name=COMPANY_NAMES.get(ticker, ticker)
     else:
         ticker,name=resolve_question_ticker(p.question)
-    return {"ticker":ticker,"company_name":name}
+    return {"ticker":ticker,"company_name":name,"discovery":(ticker is None and is_discovery_question(p.question))}
 
 
 class AnalysisInput(BaseModel):
@@ -648,12 +649,6 @@ def research(p:AnalysisInput):
     else:
         ticker,name=resolve_question_ticker(p.question)
     
-    if p.ticker is None and ticker and re.search(r'\b(best|top|buy|recommend|market)\b', p.question, re.I):
-        return {
-            "simple_summary": f"The system has scanned the market and identified {ticker} ({name}) as a top undervalued large-cap stock to buy now.",
-            "technical_detail": f"Decision: BUY\n\n{ticker} was flagged by quantitative screeners as an undervalued large-cap opportunity. Based on our analysis of its current fundamentals, market positioning, and technical indicators, it presents a highly attractive entry point for investors. We strongly recommend a BUY position for {ticker}."
-        }
-
     payload=research_model_payload(p)
     payload["ticker"]=ticker
     try:
@@ -699,3 +694,95 @@ def research(p:AnalysisInput):
         raise HTTPException(503,"Research workflow rejected the request. Check the n8n execution log and imported workflow settings.") from exc
     except (httpx.RequestError, ValueError) as exc:
         raise HTTPException(503,"Local research workflow unavailable. Check that n8n is running and the workflow is published.") from exc
+
+
+
+# ---------------------------------------------------------------------------
+# Discovery mode: "what is the best stock to buy now?" with no company named.
+# Source: Yahoo Finance most-active + day-gainers screens (free, no key).
+# Each candidate gets a shallow run through the SAME research pipeline used for
+# named stocks; the judge verdict (BUY/HOLD/SELL) plus a plain technical score ranks them.
+# Nothing here can place an order - /proposal and /approval are untouched.
+# ---------------------------------------------------------------------------
+VERDICT_RANK = {"BUY": 2, "HOLD": 1, "SELL": 0}
+
+def fetch_discovery_candidates(limit: int = DISCOVERY_TOP_N):
+    """Return up to `limit` liquid US equities from today's most-active and top-gainer lists."""
+    lists = []
+    for key in ("most_actives", "day_gainers"):
+        try:
+            quotes = yf.screen(key, count=25).get("quotes", [])
+        except Exception as exc:
+            logger.warning("Discovery screen %s failed: %s", key, exc)
+            quotes = []
+        usable = []
+        for q in quotes:
+            sym = str(q.get("symbol", "")).upper()
+            if not SYMBOL_RE.fullmatch(sym) or "." in sym or "-" in sym: continue
+            if q.get("quoteType", "EQUITY") != "EQUITY": continue
+            if (q.get("regularMarketPrice") or 0) < DISCOVERY_MIN_PRICE: continue  # skip penny stocks
+            if (q.get("marketCap") or 0) and q["marketCap"] < 2_000_000_000: continue  # skip tiny caps
+            usable.append({"ticker": sym, "name": q.get("shortName") or q.get("longName") or sym,
+                           "price": q.get("regularMarketPrice"), "change_pct": q.get("regularMarketChangePercent"),
+                           "source": "most active today" if key == "most_actives" else "top gainer today"})
+        lists.append(usable)
+    picked, seen = [], set()
+    for i in range(25):  # interleave so one list cannot crowd out the other
+        for lst in lists:
+            if i < len(lst) and lst[i]["ticker"] not in seen and len(picked) < limit:
+                seen.add(lst[i]["ticker"]); picked.append(lst[i])
+    return picked
+
+
+def technical_score(m: dict) -> int:
+    """Simple transparent tie-break from price data: trend, momentum, not overheated."""
+    score = 0
+    score += 1 if m["price"] > m["sma20"] else -1
+    if m.get("sma50") is not None: score += 1 if m["price"] > m["sma50"] else -1
+    score += 1 if m["macd"] > m["signal_line"] else -1
+    score += 1 if 40 <= m["rsi14"] <= 68 else (-1 if m["rsi14"] > 75 else 0)
+    return score
+
+
+def extract_verdict(text: str):
+    m = re.search(r"\bDecision\s*:?\s*\**\s*(BUY|HOLD|SELL)\b", text or "", re.I)
+    if m: return m.group(1).upper()
+    found = re.findall(r"\b(BUY|HOLD|SELL)\b", text or "")
+    return found[0] if found else None
+
+
+class DiscoverInput(BaseModel):
+    question: str = Field(min_length=5, max_length=1000)
+    mode: Literal["none","fixed","agentic"] = "fixed"
+
+
+@app.post("/discover")
+def discover(p: DiscoverInput):
+    candidates = fetch_discovery_candidates()
+    if not candidates:
+        raise HTTPException(503, "Could not get today's most-active stocks from Yahoo Finance right now, so I will not guess. Try again in a few minutes, or name a stock.")
+    screened, pipeline_errors = [], []
+    for c in candidates:
+        t = c["ticker"]
+        try:
+            market = price_data(t)
+            r = research(AnalysisInput(question=f"Is {t} ({c['name']}) a good buy right now?", ticker=t, mode=p.mode))
+            verdict = extract_verdict(r.get("technical_detail", "")) or extract_verdict(r.get("simple_summary", ""))
+            screened.append({**c, "price": market["price"], "verdict": verdict, "score": technical_score(market),
+                             "rsi14": market["rsi14"], "why": r["simple_summary"], "detail": r["technical_detail"]})
+        except HTTPException as exc:
+            logger.warning("Discovery screen of %s failed: %s", t, exc.detail)
+            pipeline_errors.append(f"{t}: {exc.detail}")
+        except Exception as exc:
+            logger.warning("Discovery screen of %s failed: %s", t, exc)
+            pipeline_errors.append(f"{t}: {str(exc)[:120]}")
+    if not screened:
+        raise HTTPException(503, "I found today's most-active stocks but could not analyze any of them (" + "; ".join(pipeline_errors)[:300] + "). Check that n8n and Ollama are running. No pick was made.")
+    screened.sort(key=lambda x: (VERDICT_RANK.get(x["verdict"], -1), x["score"]), reverse=True)
+    pick = screened[0]
+    return {"discovery": True, "pick": pick, "backups": screened[1:3],
+            "strong_buy": pick["verdict"] == "BUY",
+            "screened_count": len(screened), "skipped": pipeline_errors,
+            "as_of": datetime.now(timezone.utc).isoformat(),
+            "source": "Yahoo Finance most-active and top-gainer lists (delayed, unofficial)",
+            "note": "Shallow screen of a few liquid stocks, not the whole market. Research only, not financial advice."}
