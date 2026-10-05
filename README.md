@@ -10,7 +10,7 @@
 ![Alpaca](https://img.shields.io/badge/Alpaca-paper_trading_only-FFCB05?style=flat)
 ![License](https://img.shields.io/badge/license-Educational-blue?style=flat)
 
-AGENTTRADE is a **local, educational** stock-research platform for US-listed equities. It orchestrates five AI agents through n8n, retrieves vector-DB evidence from Qdrant, runs all LLMs locally via Ollama, and gates every paper order behind an explicit human-click approval. No live-trading. No cloud LLM. No data leaves your machine.
+AGENTTRADE is a **local, educational** stock-research platform for US-listed equities. It orchestrates six AI agent roles through n8n, retrieves vector-DB evidence from Qdrant, runs all LLMs locally via Ollama, and gates every paper order behind an explicit human-click approval. No live-trading. No cloud LLM. No data leaves your machine.
 
 ---
 
@@ -95,7 +95,7 @@ Human approval gate
 
 | Feature | Details |
 |---|---|
-| **5-agent pipeline** | Retrieval → Analyst → Bull/Bear debate → Critic Judge → Correction pass |
+| **6-agent pipeline** | Retrieval → Analyst → Bull/Bear debate → Critic Judge → Correction pass |
 | **Two-tier LLM routing** | `qwen2.5:7b` for Analyst & Judge · `qwen2.5:3b` for lighter roles |
 | **3 retrieval modes** | `none` / `fixed` top-3 / `agentic` vector-search |
 | **Live evidence cards** | Yahoo Finance price, statistics, and headlines → upserted into Qdrant |

@@ -292,9 +292,6 @@ def alpaca_headers(username: str = "", password: str = ""):
     key = key or os.getenv("ALPACA_PAPER_KEY_ID", "")
     secret = secret or os.getenv("ALPACA_PAPER_SECRET_KEY", "")
 
-    import logging
-    logging.warning(f"alpaca_headers debug: u={username} key={key} secret={secret}")
-
     if not key or not secret:
         raise HTTPException(503, "Alpaca paper keys not configured for this user; no order placed")
     return {"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret}
@@ -474,14 +471,6 @@ def cancel_order(order_id: str, username: str = "", password: str = ""):
                 raise HTTPException(response.status_code, f"Failed to cancel order: {response.text}")
     except (httpx.HTTPError, OSError) as exc:
         raise HTTPException(503, "Alpaca paper API unavailable; try again later") from exc
-
-@app.get("/env-test")
-def env_test(username: str = "", password: str = ""):
-    try:
-        headers = alpaca_headers(username, password)
-        return {"headers": headers}
-    except Exception as e:
-        return {"error": str(e)}
 
 @app.get("/corpus")
 def corpus(): return json.loads(CORPUS.read_text())
