@@ -16,26 +16,47 @@ AGENTTRADE is a **local, educational** stock-research platform for US-listed equ
 
 ## 📸 Screenshots
 
-### Research Dashboard — TSLA Analysis
-![TSLA Dashboard — SELL verdict with evidence breakdown](docs/screenshots/1_dashboard_tsla.png)
+### 01. Research Dashboard (Main View)
+![Main Dashboard](docs/screenshots/01_dashboard.png)
 
-### Research Dashboard — AAPL Analysis
-![AAPL Dashboard — HOLD verdict at $333.69](docs/screenshots/1_dashboard_aapl.png)
+### 02. Research Query Input
+![Research Query Input](docs/screenshots/02_aapl_research_query.png)
 
-### Human Approval Queue — Pending BUY Proposal
-![Pending Approval Queue showing BUY 1 TSLA @ $370.59](docs/screenshots/2_approve_box.png)
+### 03. Retrieved Evidence (Qdrant Vector DB)
+![Retrieved Evidence](docs/screenshots/03_retrieved_evidence.png)
 
-### After Approval — Submitted to Alpaca Paper
-![Confirmation: SUBMITTED TO ALPACA with real Alpaca order ID](docs/screenshots/2_approve_confirmation.png)
+### 04. Analyst Agent Output
+![Analyst Output](docs/screenshots/04_analyst_output.png)
+
+### 05. Bull Agent Argument
+![Bull Case](docs/screenshots/05_bull_case.png)
+
+### 06. Bear Agent Argument
+![Bear Case](docs/screenshots/06_bear_case.png)
+
+### 07. Critic/Judge Evaluation
+![Critic Output](docs/screenshots/07_critic_output.png)
+
+### 08. Final Bounded Verdict
+![Final Research Verdict](docs/screenshots/08_final_research.png)
+
+### 09. Trade Proposal Configuration
+![Trade Proposal](docs/screenshots/09_trade_proposal.png)
+
+### 10. Risk Control Guardrails
+![Risk Validation](docs/screenshots/10_risk_validation.png)
+
+### 11. Mandatory Human Approval Gate
+![Human Approval Queue](docs/screenshots/11_human_approval.png)
+
+### 12. Executed Alpaca Paper Order
+![Alpaca Paper Order Confirmation](docs/screenshots/12_alpaca_paper_order.png)
 
 ### Paper Portfolio — Live Positions & P&L
 ![Portfolio page with Alpaca paper positions and equity history](docs/screenshots/3_portfolio.png)
 
-### Evaluation Page — AD23731 Benchmark (450 runs)
-![AD23731 evaluation results with accuracy and reasoning metrics](docs/screenshots/4_evaluation.png)
-
-### n8n Workflow Orchestration
-![n8n workflow list showing research and approval pipelines](docs/screenshots/5_n8n_workflows.png)
+### Evaluation Dashboard (Benchmark Results)
+![Evaluation metrics](docs/screenshots/4_evaluation.png)
 
 ---
 
