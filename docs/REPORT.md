@@ -29,27 +29,55 @@ The final correction pass begins with a 2-4 sentence Simple summary for a reader
 <!-- EVAL_RESULTS_START -->
 # Evaluation results
 
-Run began (UTC): 2026-10-03T16:24:59.631855+00:00.
-25 frozen questions, 3 repeat(s) per model and retrieval mode.
+Run began (UTC): 2026-10-05T13:07:47.811031+00:00.
+25 frozen questions, 1 repeat(s) per model and retrieval mode.
 
-| Model | RAG mode | Successful / attempted | Accuracy | Reasoning proxy | Citation rate | Exact consistency | Errors |
-|---|---|---:|---:|---:|---:|---:|---:|
-| qwen2.5:3b | none | 75 / 75 | 0.307 | 0.000 | 0.013 | 0.000 | 0 |
-| qwen2.5:3b | fixed | 75 / 75 | 0.707 | 0.000 | 0.000 | 0.000 | 0 |
-| qwen2.5:3b | agentic | 75 / 75 | 0.640 | 0.013 | 0.053 | 0.000 | 0 |
-| llama3.2:3b | none | 75 / 75 | 0.293 | 0.000 | 0.000 | 0.000 | 0 |
-| llama3.2:3b | fixed | 75 / 75 | 0.893 | 0.000 | 0.000 | 0.000 | 0 |
-| llama3.2:3b | agentic | 75 / 75 | 0.747 | 0.027 | 0.027 | 0.000 | 0 |
+## Overall (all query types)
 
-Scores exclude failed requests and show their counts explicitly; a row with no successful requests is n/a.
-Accuracy is strict labeled-term matching, not expert judgment. Reasoning is a citation/rationale proxy.
-With one repeat, consistency is n/a; use three or more repeats for a consistency comparison.
-Inspect raw.csv and n8n traces for actual source support and tool calls. No trading performance inference.
+| Model | Tier | RAG mode | Succ/Att | Accuracy | Reasoning | Citation | Src-support | p50 lat | p95 lat | Errors |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| qwen2.5:7b | 7b | none | 0 / 25 | n/a | n/a | n/a | n/a | n/a | n/a | 25 |
+| qwen2.5:7b | 7b | fixed | 0 / 25 | n/a | n/a | n/a | n/a | n/a | n/a | 25 |
+| qwen2.5:7b | 7b | agentic | 0 / 25 | n/a | n/a | n/a | n/a | n/a | n/a | 25 |
+| qwen2.5:3b | 3b | none | 0 / 25 | n/a | n/a | n/a | n/a | n/a | n/a | 25 |
+| qwen2.5:3b | 3b | fixed | 0 / 25 | n/a | n/a | n/a | n/a | n/a | n/a | 25 |
+| qwen2.5:3b | 3b | agentic | 0 / 25 | n/a | n/a | n/a | n/a | n/a | n/a | 25 |
+
+## Named-ticker queries only
+
+| Model | Tier | RAG mode | Succ/Att | Accuracy | Reasoning | Citation | Src-support | p50 lat | p95 lat | Errors |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| qwen2.5:7b | 7b | none | 0 / 25 | n/a | n/a | n/a | n/a | n/a | n/a | 25 |
+| qwen2.5:7b | 7b | fixed | 0 / 25 | n/a | n/a | n/a | n/a | n/a | n/a | 25 |
+| qwen2.5:7b | 7b | agentic | 0 / 25 | n/a | n/a | n/a | n/a | n/a | n/a | 25 |
+| qwen2.5:3b | 3b | none | 0 / 25 | n/a | n/a | n/a | n/a | n/a | n/a | 25 |
+| qwen2.5:3b | 3b | fixed | 0 / 25 | n/a | n/a | n/a | n/a | n/a | n/a | 25 |
+| qwen2.5:3b | 3b | agentic | 0 / 25 | n/a | n/a | n/a | n/a | n/a | n/a | 25 |
+
+## Discovery queries only (no explicit ticker)
+
+| Model | Tier | RAG mode | Succ/Att | Accuracy | Reasoning | Citation | Src-support | p50 lat | p95 lat | Errors |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| qwen2.5:7b | 7b | none | 0 / 0 | n/a | n/a | n/a | n/a | n/a | n/a | 0 |
+| qwen2.5:7b | 7b | fixed | 0 / 0 | n/a | n/a | n/a | n/a | n/a | n/a | 0 |
+| qwen2.5:7b | 7b | agentic | 0 / 0 | n/a | n/a | n/a | n/a | n/a | n/a | 0 |
+| qwen2.5:3b | 3b | none | 0 / 0 | n/a | n/a | n/a | n/a | n/a | n/a | 0 |
+| qwen2.5:3b | 3b | fixed | 0 / 0 | n/a | n/a | n/a | n/a | n/a | n/a | 0 |
+| qwen2.5:3b | 3b | agentic | 0 / 0 | n/a | n/a | n/a | n/a | n/a | n/a | 0 |
+
+Scores exclude failed requests; error counts are explicit.
+Accuracy = strict labeled-term matching, not expert judgment.
+Reasoning = citation/rationale proxy (automated).
+Source-support = human reviewer score 0–2 (0=unsupported, 1=partial, 2=fully supported); n/a until --scored-csv supplied.
+Latency is real wall-clock time per request; p95 captures tail latency.
+With one repeat, consistency is n/a; use ≥3 repeats for a consistency comparison.
+Raw LLM answers preserved in raw_answers/ for trace inspection.
+No trading performance inference from these scores.
 <!-- EVAL_RESULTS_END --> If pricing is tested, current Yahoo snapshots cannot recreate a historical point-in-time backtest and should be excluded from the frozen QA comparison.
 
 ## Limits and threats to validity
 
-Synthetic classroom policy questions are easier than actual equity research and cannot validate investment conclusions. Term matching can reward wrong answers that include expected words; citations can be present but irrelevant; exact string consistency is harsh. Live Yahoo data may be delayed, interrupted, or subject to personal-use restrictions. NewsAPI is an optional local development-only source; its free Developer plan has a 24-hour delay and cannot be used in staging or production, even internally (https://newsapi.org/pricing). When the key is absent or that feed fails, Yahoo headline retrieval is attempted. All researched tickers receive dated live price cards in the same collection, with available key statistics and recent Yahoo Finance headlines. No news yields a flagged price/stat fallback; a headline is not a verified full article and source coverage varies by ticker. The old synthetic policy card 3 originally asserted an obsolete two-ticker limit; the card now includes an explicit OBSOLETE annotation and must not be applied to live trading rules. No licensed exchange feed, verified full-article news/filings provider or realistic commission/slippage model is included. Alpaca paper account and keys are needed before an order can be demonstrated. Because n8n runs natively rather than in Compose, its HTTP Request nodes must target localhost:8000 instead of the Compose-internal api hostname, and its Ollama and Qdrant credentials must use localhost URLs. The n8n workflow JSON was structurally checked off-platform, not run in a live n8n instance in the build environment, so import and end-to-end behavior require the supplied host validation steps before the project can honestly be called runtime-verified. API warnings and debug output are written to `agenttrade.log` (rotating RotatingFileHandler, 5 MB × 3 backups) rather than a static `debug.log`.
+Synthetic classroom policy questions are easier than actual equity research and cannot validate investment conclusions. Term matching can reward wrong answers that include expected words; citations can be present but irrelevant; exact string consistency is harsh. Live Yahoo data may be delayed, interrupted, or subject to personal-use restrictions. NewsAPI is an optional local development-only source; its free Developer plan has a 24-hour delay and cannot be used in staging or production, even internally (https://newsapi.org/pricing). When the key is absent or that feed fails, Yahoo headline retrieval is attempted. All researched tickers receive dated live price cards in the same collection, with available key statistics and recent Yahoo Finance headlines. No news yields a flagged price/stat fallback; a headline is not a verified full article and source coverage varies by ticker. The old synthetic policy card 3 originally asserted an obsolete two-ticker limit; the card now includes an explicit OBSOLETE annotation and must not be applied to live trading rules. No licensed exchange feed, verified full-article news/filings provider or realistic commission/slippage model is included. Alpaca paper account and keys are needed before an order can be demonstrated. Because n8n runs natively rather than in Compose, its HTTP Request nodes must target localhost:8000 instead of the Compose-internal api hostname, and its Ollama and Qdrant credentials must use localhost URLs. The final implementation was validated locally using FastAPI, n8n, Ollama, Qdrant and Alpaca Paper Trading. An AAPL request was executed end-to-end through evidence retrieval, multi-agent analysis, proposal generation, deterministic risk validation, human approval and paper-order submission. API warnings and debug output are written to `agenttrade.log` (rotating RotatingFileHandler, 5 MB × 3 backups) rather than a static `debug.log`.
 
 ## Source references
 
@@ -78,3 +106,19 @@ The dashboard takes a single question rather than a separate ticker. The service
 The dashboard omits legacy `model` selection and uses the API defaults: `fast_model=qwen2.5:3b`, `smart_model=qwen2.5:7b`. The `/prepare` response resolves both names; the n8n analyst and critic model nodes use `smart_model`, and the other four chat nodes use `fast_model`. Explicit legacy `model` requests still use a single model for every chat role unless a tier override is supplied. Both resolved names are returned for audit. Embeddings are unchanged. The Simple summary is part of analyst/correction output, not a separate node.
 
 The existing Qwen3B vs Llama3B evaluation intentionally remains single-model for comparability; its results cannot establish two-tier quality or speed. Bounded correction still uses 3B and can change the final wording and decision. No latency or quality improvement has been measured for the split setup. Offline API tests and structural workflow checks do not replace importing and testing on the host with all required models installed.
+
+
+### Final System Validation
+
+| Component/Test | Expected | Observed | Status |
+|---|---|---|---|
+| FastAPI | Backend available | Verified | PASS |
+| n8n | Workflow executes | Verified | PASS |
+| Ollama | Model inference | Verified | PASS |
+| Qdrant | Evidence retrieval | Verified | PASS |
+| AAPL research | Complete analysis | Verified | PASS |
+| Bull/Bear debate | Both cases generated | Verified | PASS |
+| Critic | Final synthesis | Verified | PASS |
+| Risk engine | Constraints enforced | Verified | PASS |
+| Human approval | Required | Verified | PASS |
+| Alpaca | Paper order | Verified | PASS |

@@ -290,6 +290,9 @@ def alpaca_headers(username: str = "", password: str = ""):
     key = key or os.getenv("ALPACA_PAPER_KEY_ID", "")
     secret = secret or os.getenv("ALPACA_PAPER_SECRET_KEY", "")
 
+    import logging
+    logging.warning(f"alpaca_headers debug: u={username} key={key} secret={secret}")
+
     if not key or not secret:
         raise HTTPException(503, "Alpaca paper keys not configured for this user; no order placed")
     return {"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret}
@@ -433,7 +436,7 @@ def portfolio(username: str = "", password: str = ""):
             account=alpaca_get(client,"/v2/account",headers)
             positions=alpaca_get(client,"/v2/positions",headers)
             history=alpaca_get(client,"/v2/account/portfolio/history?period=1M&timeframe=1D",headers)
-            orders=alpaca_get(client,"/v2/orders?status=all&limit=20&direction=desc",headers)
+            orders=alpaca_get(client,"/v2/orders?status=all&limit=100&direction=desc",headers)
         if not isinstance(account,dict) or not isinstance(positions,list) or not isinstance(history,dict) or not isinstance(orders,list): raise ValueError("unexpected broker response")
         def amount(value):
             n=float(value)
@@ -444,11 +447,11 @@ def portfolio(username: str = "", password: str = ""):
             if pl is not None: points.append({"timestamp":int(timestamp),"profit_loss":amount(pl)})
         holdings=[{"symbol":str(p["symbol"]),"qty":amount(p["qty"]),"market_value":amount(p["market_value"]),
                    "unrealized_pl":amount(p["unrealized_pl"])} for p in positions]
-        recent=[{"symbol":str(o["symbol"]),"side":str(o["side"]),"qty":amount(o["qty"]),
+        recent=[{"id":str(o["id"]), "symbol":str(o["symbol"]),"side":str(o["side"]),"qty":amount(o["qty"]),
                  "filled_qty":amount(o.get("filled_qty") or 0),"status":str(o["status"]),
                  "submitted_at":o.get("submitted_at"),"filled_at":o.get("filled_at"),
                  "filled_avg_price":amount(o["filled_avg_price"]) if o.get("filled_avg_price") is not None else None}
-                for o in orders]
+                for o in orders if str(o["status"]).lower() not in ["canceled", "cancelled"]][:20]
         return {"configured":True,"cash":amount(account["cash"]),"buying_power":amount(account["buying_power"]),
                 "equity":amount(account["equity"]),"positions":holdings,"profit_loss_history":points,"orders":recent,
                 "note":"Profit/loss history is reported by Alpaca paper, not reconstructed from ledger submissions. Check Alpaca for fill-level accounting and cash-flow details."}
@@ -457,6 +460,28 @@ def portfolio(username: str = "", password: str = ""):
         raise HTTPException(503,"Alpaca paper portfolio data incomplete; cannot show a reliable chart") from exc
     except (httpx.HTTPError, OSError) as exc:
         raise HTTPException(503,"Alpaca paper portfolio unavailable; try again later") from exc
+
+@app.delete("/cancel-order/{order_id}")
+def cancel_order(order_id: str, username: str = "", password: str = ""):
+    """Cancel a pending Alpaca order."""
+    headers = alpaca_headers(username, password)
+    try:
+        with httpx.Client(timeout=10) as client:
+            response = client.delete(f"https://paper-api.alpaca.markets/v2/orders/{order_id}", headers=headers)
+            if response.status_code in (200, 204):
+                return {"status": "success", "message": "Order cancelled successfully."}
+            else:
+                raise HTTPException(response.status_code, f"Failed to cancel order: {response.text}")
+    except (httpx.HTTPError, OSError) as exc:
+        raise HTTPException(503, "Alpaca paper API unavailable; try again later") from exc
+
+@app.get("/env-test")
+def env_test(username: str = "", password: str = ""):
+    try:
+        headers = alpaca_headers(username, password)
+        return {"headers": headers}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.get("/corpus")
 def corpus(): return json.loads(CORPUS.read_text())

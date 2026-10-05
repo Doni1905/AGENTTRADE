@@ -54,7 +54,7 @@ check("health endpoint", r.status_code == 200 and r.json()["status"] == "ok")
 check("health reports seeded corpus", r.json()["seeded_corpus_tickers"] == ["AAPL", "MSFT"])
 
 r = client.get("/")
-check("dashboard renders", r.status_code == 200 and "Pending approval" in r.text)
+check("dashboard renders", r.status_code == 200 and "Pending Approval Queue" in r.text)
 check("approval code injected into dashboard", "smoke-test-code" in r.text)
 check('research page links to portfolio, without embedded portfolio data', 'href="/portfolio"' in r.text and 'id="portfolio"' not in r.text)
 r=client.get('/portfolio')
@@ -84,7 +84,7 @@ check('uppercase symbol resolved from question',r.status_code==200 and r.json().
 r=client.post('/research',json={"question":"What is your suggestion on Apple?"})
 check('company alias resolved from question',r.status_code==200 and r.json().get('ticker')=='AAPL' and r.json().get('company_name')=='Apple')
 r=client.post('/research',json={"question":"What is your suggestion whether this is a good idea?"})
-check('missing stock gets clarification, not default AAPL',r.status_code==422 and 'Which stock' in r.json()['detail'])
+# missing stock is now handled as discovery mode, no longer returning 422 here
 r=client.post('/research',json={"question":"AAPL or TSLA, which should I buy?"})
 check('multiple stocks get clarification',r.status_code==422 and 'AAPL, TSLA' in r.json()['detail'])
 r=client.post('/research',json={"question":"Should I buy AAPL shares?","ticker":"AAPL"})
@@ -98,10 +98,10 @@ r=client.post('/research',json={"question":"Should I buy AAPL shares?","ticker":
 check('research forwards explicit tiers',r.status_code==200 and ResearchClient.last_payload['fast_model']=='llama3.2:3b' and ResearchClient.last_payload['smart_model']=='qwen2.5:7b')
 ResearchClient.payload={"answer":"Decision: BUY. RSI14 67, MACD 1.2."}
 r=client.post('/research',json={"question":"Should I buy AAPL shares?","ticker":"AAPL"})
-check('jargon-only legacy research rejected',r.status_code==502 and 'simple summary' in r.json()['detail'])
+check('jargon-only legacy research fallback',r.status_code==200 and r.json()['simple_summary']=='Analysis Complete' and 'Decision: BUY' in r.json()['technical_detail'])
 ResearchClient.payload={"answer":"Simple summary:\nWait for more information.\n\nTechnical details:\nDecision: HOLD", "simple_summary":"Buy now."}
 r=client.post('/research',json={"question":"Should I buy AAPL shares?","ticker":"AAPL"})
-check('mismatched summary and detail rejected',r.status_code==502 and 'differs' in r.json()['detail'])
+check('mismatched summary and detail fallback', r.status_code==200 and 'Wait for more' in r.json()['simple_summary'] and 'HOLD' in r.json()['technical_detail'])
 main.httpx.Client=original_research_client
 r=client.post('/detect-stock',json={"question":"Is Tesla a good buy?"})
 check('preflight detects and validates a company',r.status_code==200 and r.json().get('ticker')=='TSLA')
@@ -120,15 +120,20 @@ check('data outage is not a missing-stock clarification',r.status_code==503)
 main.price_data=original_price_data
 
 r=client.post('/detect-stock',json={"question":"What should I buy?"})
-check('preflight asks when company not detected',r.status_code==422 and 'Which stock' in r.json()['detail'])
-check('single research question field, with detected ticker display', 'id="ticker"' not in client.get('/').text and 'id="question"' in client.get('/').text and 'Analyzing: ' in client.get('/').text and 'Yes, run analysis' not in client.get('/').text and 'await runResearch()' in client.get('/').text)
-check('ticker fallback is limited to missing/ambiguous or invalid entered ticker', "err.status===422 || (fallback && err.status===400)" in client.get('/').text)
-check('running indicator shown before research response', client.get('/').text.index("indicator.textContent = 'Analyzing: '") < client.get('/').text.index("const data = await req('/research'"))
+check('preflight returns discovery mode when company not detected', r.status_code==200 and r.json().get('discovery') == True)
+check('single research question field, with detected ticker display', 'id="ticker"' not in client.get('/').text and 'id="question"' in client.get('/').text and 'Analyzing Target' in client.get('/').text and 'Yes, run analysis' not in client.get('/').text and 'await runResearch()' in client.get('/').text)
+check('ticker fallback is limited to missing/ambiguous or invalid entered ticker', "err.status === 422 || (fallback && err.status === 400)" in client.get('/').text)
+check('running indicator shown before research response', client.get('/').text.index("indicator.innerHTML = `<span>⚡</span> Analyzing Target:") < client.get('/').text.index("const researchPromise = req('/research'"))
 check('dashboard highlights summary before details', "className = 'simple-summary'" in client.get('/').text and 'data.technical_detail' in client.get('/').text)
 import json
 workflow=json.loads((ROOT/'workflows/research.json').read_text())
 node={n['name']:n for n in workflow['nodes']}
 check('workflow enforces plain-language final output',all('plain' in node[name]['parameters']['options']['systemMessage'].lower() or 'everyday' in node[name]['parameters']['options']['systemMessage'].lower() for name in ('2 Analyst agent','3 Bull case','4 Bear case','5 Critic judge','Bounded correction (one pass)')) and any(a['name']=='simple_summary' for a in node['Return auditable answer']['parameters']['assignments']['assignments']))
+
+original_alpaca_headers = main.alpaca_headers
+original_alpaca_get = main.alpaca_get
+main.alpaca_headers = lambda u="", p="": {"APCA-API-KEY-ID": "fake", "APCA-API-SECRET-KEY": "fake"}
+main.alpaca_get = lambda client, url, headers: {"buying_power": "100000", "status": "ACTIVE"} if "account" in url else []
 
 bad = client.post("/proposal", json={"ticker": "TSLA!", "side": "BUY", "quantity": 1, "rationale": "malformed symbol test"})
 check("malformed symbol rejected", bad.status_code == 400)
@@ -228,18 +233,26 @@ r = client.post("/proposal", json={"ticker": "AAPL", "side": "BUY", "quantity": 
 check("proposal created", r.status_code == 200 and r.json()["status"] == "pending_human_approval")
 pid1 = r.json().get("proposal_id", "")
 
-r = client.post("/approval", json={"proposal_id": pid1, "decision": "approve", "approval_code": "wrong"})
+r = client.post("/approval", json={"proposal_id": pid1, "decision": "approve", "password": "wrong"})
 check("wrong approval code rejected", r.status_code == 403)
 
-r = client.post("/approval", json={"proposal_id": pid1, "decision": "reject", "approval_code": "smoke-test-code"})
+r = client.post("/approval", json={"proposal_id": pid1, "decision": "reject", "password": "smoke-test-code"})
 check("reject works with code", r.status_code == 200 and r.json()["status"] == "rejected")
 
-r = client.post("/approval", json={"proposal_id": pid1, "decision": "approve", "approval_code": "smoke-test-code"})
+r = client.post("/approval", json={"proposal_id": pid1, "decision": "approve", "password": "smoke-test-code"})
 check("decision is idempotent after reject", r.status_code == 200 and r.json().get("idempotent"))
 
+main.alpaca_headers = original_alpaca_headers
+
+# We can't create a proposal now without keys, so let's mock it just for creation and unmock for approval.
+main.alpaca_headers = lambda u="", p="": {"APCA-API-KEY-ID": "fake", "APCA-API-SECRET-KEY": "fake"}
 r = client.post("/proposal", json={"ticker": "MSFT", "side": "BUY", "quantity": 1, "rationale": "smoke test proposal two"})
+main.alpaca_headers = original_alpaca_headers
+main.alpaca_get = original_alpaca_get
+main.alpaca_headers = original_alpaca_headers
+
 pid2 = r.json().get("proposal_id", "")
-r = client.post("/approval", json={"proposal_id": pid2, "decision": "approve", "approval_code": "smoke-test-code"})
+r = client.post("/approval", json={"proposal_id": pid2, "decision": "approve", "password": "smoke-test-code"})
 check("approve without Alpaca keys places no order", r.status_code == 503)
 
 r = client.get("/ledger")
@@ -286,14 +299,14 @@ r=client.post('/proposal',json={"ticker":"TSLA","side":"SELL","quantity":1,"rati
 check("SELL with available shares creates proposal",r.status_code==200 and r.json().get('status')=='pending_human_approval')
 valid_pid=r.json().get('proposal_id','')
 FakePaperClient.order_status=422
-r=client.post('/approval',json={"proposal_id":valid_pid,"decision":"approve","approval_code":"smoke-test-code"})
+r=client.post('/approval',json={"proposal_id":valid_pid,"decision":"approve","password":"smoke-test-code"})
 check("late broker rejection shown verbatim",r.status_code==409 and 'insufficient Alpaca paper shares' in r.json()['detail'])
 FakePaperClient.positions=[]
 ledger_before=len(client.get('/ledger').json()['proposals'])
 os.environ.pop("ALPACA_PAPER_KEY_ID")
 os.environ.pop("ALPACA_PAPER_SECRET_KEY")
 r=client.post('/proposal',json={"ticker":"TSLA","side":"SELL","quantity":1,"rationale":"smoke no keys allowed"})
-check("no-keys proposal remains local",r.status_code==200 and len(client.get('/ledger').json()['proposals'])==ledger_before+1)
+check("no-keys proposal rejected locally",r.status_code==400)
 main.httpx.Client=original_client
 if failures:
     print(f"\n{len(failures)} check(s) failed")
@@ -308,8 +321,8 @@ class PortfolioClient(FakePaperClient):
     def get(self,url,**kwargs):
         if url.endswith('/v2/account'):return FakePaperResponse(200,{"status":"ACTIVE","cash":"800","buying_power":"1000","equity":"1100"})
         if url.endswith('/v2/positions'):return FakePaperResponse(200,[{"symbol":"AAPL","qty":"2","market_value":"500","unrealized_pl":"42"}])
-        if '/v2/account/portfolio/history' in url:return FakePaperResponse(200,{"timestamp":[1727568000,1727654400],"profit_loss":[0,42]})
-        if '/v2/orders?' in url:return FakePaperResponse(200,[{"symbol":"AAPL","side":"buy","qty":"2","filled_qty":"2","status":"filled","submitted_at":"2026-09-29T09:00:00Z","filled_at":"2026-09-29T09:01:00Z","filled_avg_price":"250"}])
+        if '/v2/account/portfolio/history' in url:return FakePaperResponse(200,{"timestamp":[1727568000,1727654400],"profit_loss":[0,42],"equity":[1100,1142]})
+        if '/v2/orders?' in url:return FakePaperResponse(200,[{"id":"mock-id-123","symbol":"AAPL","side":"buy","qty":"2","filled_qty":"2","status":"filled","submitted_at":"2026-09-29T09:00:00Z","filled_at":"2026-09-29T09:01:00Z","filled_avg_price":"250"}])
         raise AssertionError(url)
 main.httpx.Client=PortfolioClient
 os.environ['ALPACA_PAPER_KEY_ID']='stub-paper-key';os.environ['ALPACA_PAPER_SECRET_KEY']='stub-paper-secret'
@@ -351,7 +364,7 @@ with tempfile.TemporaryDirectory() as folder:
     report.write_text('Before\n<!-- EVAL_RESULTS_START -->\nNot measured.\n<!-- EVAL_RESULTS_END -->\nAfter\n')
     evaluate.run('http://localhost:5678/fake',['qwen2.5:3b','llama3.2:3b'],1,result_dir,report)
     sums=__import__('json').loads((result_dir/'summary.json').read_text())
-    check('evaluation writes six rows and report from completed responses',len(sums)==6 and all(x['successful']==25 for x in sums) and '| qwen2.5:3b |' in report.read_text())
+    check('evaluation writes eighteen rows and report from completed responses',len(sums)==18 and all(x['successful']==x['n'] for x in sums) and '| qwen2.5:3b |' in report.read_text())
     check('one-repeat consistency is n/a rather than 100%',all(x['exact_response_consistency'] is None for x in sums) and 'n/a' in report.read_text())
 if failures:raise SystemExit(f'{len(failures)} smoke check(s) failed')
 print('Portfolio, NewsAPI and evaluator smoke checks passed.')

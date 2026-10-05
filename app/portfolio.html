@@ -459,6 +459,7 @@ function render(p) {
             <th class="num">Filled</th>
             <th class="num">Avg Fill</th>
             <th>Status</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -471,6 +472,11 @@ function render(p) {
               <td class="num">${esc(o.filled_qty)}</td>
               <td class="num">${o.filled_avg_price == null ? '—' : money(o.filled_avg_price)}</td>
               <td><span class="status ${esc(o.status.toLowerCase())}">${esc(o.status.replace(/_/g, ' '))}</span></td>
+              <td>
+                ${(o.status.toLowerCase() === 'new' || o.status.toLowerCase() === 'accepted') ? 
+                  `<button class="ghost" style="padding:4px 8px;font-size:11px;color:#ef4444!important;border-color:rgba(239,68,68,0.4)!important;margin:0;" onclick="cancelOrder('${esc(o.id)}')">Cancel</button>` : 
+                  ''}
+              </td>
             </tr>`).join('')}
         </tbody>
       </table>
@@ -549,6 +555,22 @@ function checkLogout() {
       localStorage.removeItem('agenttrade_pass');
       window.location.reload();
     };
+  }
+}
+
+async function cancelOrder(id) {
+  if (!confirm('Are you sure you want to cancel this order?')) return;
+  try {
+    const u = localStorage.getItem('agenttrade_user') || '';
+    const p = localStorage.getItem('agenttrade_pass') || '';
+    const qs = '?username=' + encodeURIComponent(u) + '&password=' + encodeURIComponent(p);
+    const r = await fetch('/cancel-order/' + encodeURIComponent(id) + qs, { method: 'DELETE' });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw Error(typeof d.detail === 'string' ? d.detail : (d.message || 'Failed to cancel order'));
+    alert(d.message || 'Order cancelled successfully.');
+    refresh();
+  } catch (e) {
+    alert(e.message);
   }
 }
 

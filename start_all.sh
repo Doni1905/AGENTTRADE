@@ -9,4 +9,7 @@ N8N_SECURE_COOKIE="false" npx n8n > n8n.log 2>&1 &
 echo "n8n is starting up (logs are being written to n8n.log)"
 
 echo "Starting FastAPI development server..."
+set -a
+source .env
+set +a
 N8N_URL="http://127.0.0.1:5678" fastapi dev app/main.py
