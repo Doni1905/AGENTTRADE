@@ -256,6 +256,8 @@ def set_keys(req: SetKeysRequest):
 
 @app.post("/proposal")
 def create_proposal(p:Proposal):
+    if not p.username:
+        raise HTTPException(401, "You must be logged in to create a proposal")
     ticker=p.ticker.upper(); market=price_data(ticker)
     errors=risk(ticker,p.side,p.quantity,market["price"])
     if errors: raise HTTPException(422,{"risk_errors":errors})
@@ -401,13 +403,11 @@ def _approve_locked(a:Approval):
 
 @app.get("/ledger")
 def ledger(username: str = ""):
+    if not username:
+        raise HTTPException(401, "You must be logged in to view proposals")
     with conn() as c:
-        if username:
-            trades = [dict(x) for x in c.execute("SELECT trades.* FROM trades JOIN proposals ON trades.proposal_id=proposals.id WHERE proposals.username=? ORDER BY trades.id DESC LIMIT 100", (username,))]
-            proposals = [dict(x) for x in c.execute("SELECT * FROM proposals WHERE username=? ORDER BY created DESC LIMIT 100", (username,))]
-        else:
-            trades = [dict(x) for x in c.execute("SELECT trades.* FROM trades JOIN proposals ON trades.proposal_id=proposals.id WHERE proposals.username IS NULL OR proposals.username='' ORDER BY trades.id DESC LIMIT 100")]
-            proposals = [dict(x) for x in c.execute("SELECT * FROM proposals WHERE username IS NULL OR username='' ORDER BY created DESC LIMIT 100")]
+        trades = [dict(x) for x in c.execute("SELECT trades.* FROM trades JOIN proposals ON trades.proposal_id=proposals.id WHERE proposals.username=? ORDER BY trades.id DESC LIMIT 100", (username,))]
+        proposals = [dict(x) for x in c.execute("SELECT * FROM proposals WHERE username=? ORDER BY created DESC LIMIT 100", (username,))]
         return {"trades": trades, "proposals": proposals}
 
 @app.get("/portfolio",response_class=HTMLResponse)
